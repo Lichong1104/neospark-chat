@@ -26,6 +26,7 @@ export default function ChatPage() {
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
   const [model, setModel] = useState('');
   const [draft, setDraft] = useState('');
+  const [pendingAuto, setPendingAuto] = useState<{ skill: string; message: string } | null>(null);
   const [streaming, setStreaming] = useState(false);
 
   const abortRef = useRef<AbortController | null>(null);
@@ -57,16 +58,20 @@ export default function ChatPage() {
     }
   }, [user, refreshSessions]);
 
-  // Jump-in intent from the marketing site (?skill=<id>&message=<text>).
+  // Jump-in intent from the marketing site (?skill=<id>&message=<text>&auto=1).
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const skillParam = params.get('skill');
     const messageParam = params.get('message');
+    const auto = params.get('auto') === '1';
     if (messageParam) setDraft(messageParam);
     if (skillParam && SKILLS.some((s) => s.id === skillParam)) {
       setSelectedSkills((prev) => (prev.includes(skillParam) ? prev : [...prev, skillParam]));
     }
-    if (skillParam || messageParam) window.history.replaceState(null, '', window.location.pathname);
+    if (auto && skillParam && messageParam) {
+      setPendingAuto({ skill: skillParam, message: messageParam });
+    }
+    if (skillParam || messageParam || auto) window.history.replaceState(null, '', window.location.pathname);
   }, []);
 
   // Entering the chat requires a login — otherwise pop the login dialog.
@@ -140,10 +145,11 @@ export default function ChatPage() {
   }, []);
 
   const sendMessage = useCallback(
-    async (text: string, attachments: Attachment[] = []) => {
+    async (text: string, attachments: Attachment[] = [], skillIdsOverride?: string[]) => {
+      const skillIds = skillIdsOverride ?? selectedSkills;
       const content = attachments.length > 0 ? buildMessageWithAttachments(text, attachments) : text.trim();
       if (!content || streamingRef.current) return;
-      if (selectedSkills.length === 0) {
+      if (skillIds.length === 0) {
         toast('Select a skill first');
         return;
       }
@@ -167,7 +173,7 @@ export default function ChatPage() {
 
       try {
         const sessionId = await chatStream(
-          { skillIds: selectedSkills, message: content, sessionId: activeId, model: model || undefined },
+          { skillIds, message: content, sessionId: activeId, model: model || undefined },
           {
             onText: (t) => {
               acc += t;
@@ -206,6 +212,15 @@ export default function ChatPage() {
     },
     [selectedSkills, model, activeId, refreshSessions],
   );
+
+  // Auto-run the jump-in intent once signed in.
+  useEffect(() => {
+    if (!user || !pendingAuto) return;
+    const { skill, message } = pendingAuto;
+    setPendingAuto(null);
+    setSelectedSkills((prev) => (prev.includes(skill) ? prev : [...prev, skill]));
+    void sendMessage(message, [], [skill]);
+  }, [user, pendingAuto, sendMessage]);
 
   const contextLabel = useMemo(() => {
     const parts: string[] = [];
