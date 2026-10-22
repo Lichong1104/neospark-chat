@@ -1,0 +1,251 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { toast } from 'sonner';
+import { useAuth } from '../auth/AuthContext';
+import Sidebar from '../components/Sidebar';
+import ChatArea from '../components/ChatArea';
+import { MODELS, SKILLS } from '../data/skills';
+import { chatStream, deleteSession, getSessionMessages, listModels, listSessions, listSkills, pinSession } from '../lib/api';
+import type { Attachment, MediaBlock, Message, Session } from '../types';
+import { uid } from '../lib/utils';
+
+function buildMessageWithAttachments(text: string, attachments: Attachment[]): string {
+  const refs = attachments
+    .map((a) => `- ${a.name}（upload_id: ${a.uploadId}，url: ${a.url}）`)
+    .join('\n');
+  return [text.trim(), 'Reference attachments:', refs].filter(Boolean).join('\n\n');
+}
+
+export default function ChatPage() {
+  const { user, isLoading, openLogin } = useAuth();
+
+  const [skills, setSkills] = useState(SKILLS);
+  const [models, setModels] = useState(MODELS);
+  const [sessions, setSessions] = useState<Session[]>([]);
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
+  const [model, setModel] = useState('');
+  const [draft, setDraft] = useState('');
+  const [streaming, setStreaming] = useState(false);
+
+  const abortRef = useRef<AbortController | null>(null);
+  const streamingRef = useRef(false);
+
+  // Catalogue (anonymous). On failure keep the fallback snapshot.
+  useEffect(() => {
+    listSkills()
+      .then((s) => s.length && setSkills(s))
+      .catch(() => {});
+    listModels()
+      .then((m) => m.length && setModels(m))
+      .catch(() => {});
+  }, []);
+
+  const refreshSessions = useCallback(() => {
+    listSessions()
+      .then(setSessions)
+      .catch(() => {});
+  }, []);
+
+  // History needs auth; clear it when the visitor signs out.
+  useEffect(() => {
+    if (user) refreshSessions();
+    else {
+      setSessions([]);
+      setMessages([]);
+      setActiveId(null);
+    }
+  }, [user, refreshSessions]);
+
+  // Jump-in intent from the marketing site (?skill=<id>&message=<text>).
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const skillParam = params.get('skill');
+    const messageParam = params.get('message');
+    if (messageParam) setDraft(messageParam);
+    if (skillParam && SKILLS.some((s) => s.id === skillParam)) {
+      setSelectedSkills((prev) => (prev.includes(skillParam) ? prev : [...prev, skillParam]));
+    }
+    if (skillParam || messageParam) window.history.replaceState(null, '', window.location.pathname);
+  }, []);
+
+  // Entering the chat requires a login — otherwise pop the login dialog.
+  useEffect(() => {
+    if (!isLoading && !user) openLogin();
+  }, [isLoading, user, openLogin]);
+
+  const cancelStream = useCallback(() => {
+    abortRef.current?.abort();
+    abortRef.current = null;
+    streamingRef.current = false;
+    setStreaming(false);
+  }, []);
+
+  const newChat = useCallback(() => {
+    cancelStream();
+    setActiveId(null);
+    setMessages([]);
+    setDraft('');
+  }, [cancelStream]);
+
+  const selectSession = useCallback(
+    async (id: string) => {
+      cancelStream();
+      setActiveId(id);
+      const s = sessions.find((x) => x.id === id);
+      if (s) {
+        setSelectedSkills(s.skillIds);
+        setModel(s.model ?? '');
+      }
+      try {
+        setMessages(await getSessionMessages(id));
+      } catch {
+        setMessages([]);
+      }
+    },
+    [cancelStream, sessions],
+  );
+
+  const toggleSkill = useCallback((id: string) => {
+    setSelectedSkills((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  }, []);
+
+  const handleDeleteSession = useCallback(
+    async (id: string) => {
+      try {
+        await deleteSession(id);
+      } catch {
+        // still remove locally even if the API call fails
+      }
+      setSessions((prev) => prev.filter((s) => s.id !== id));
+      if (activeId === id) {
+        cancelStream();
+        setActiveId(null);
+        setMessages([]);
+      }
+      toast('Conversation deleted');
+    },
+    [activeId, cancelStream],
+  );
+
+  const handlePinSession = useCallback(async (id: string, pinned: boolean) => {
+    // Optimistic update; revert on failure.
+    setSessions((prev) => prev.map((s) => (s.id === id ? { ...s, pinned } : s)));
+    try {
+      await pinSession(id, pinned);
+    } catch {
+      setSessions((prev) => prev.map((s) => (s.id === id ? { ...s, pinned: !pinned } : s)));
+      toast('Action failed');
+    }
+  }, []);
+
+  const sendMessage = useCallback(
+    async (text: string, attachments: Attachment[] = []) => {
+      const content = attachments.length > 0 ? buildMessageWithAttachments(text, attachments) : text.trim();
+      if (!content || streamingRef.current) return;
+      if (selectedSkills.length === 0) {
+        toast('Select a skill first');
+        return;
+      }
+
+      const userMsg: Message = { id: uid(), role: 'user', content, createdAt: Date.now() };
+      const asstId = uid();
+      const asstMsg: Message = { id: asstId, role: 'assistant', content: '', streaming: true, createdAt: Date.now() };
+      setMessages((prev) => [...prev, userMsg, asstMsg]);
+      setDraft('');
+      streamingRef.current = true;
+      setStreaming(true);
+
+      const controller = new AbortController();
+      abortRef.current = controller;
+
+      let acc = '';
+      const media: MediaBlock[] = [];
+      const patch = (extra: Partial<Message>) => {
+        setMessages((prev) => prev.map((m) => (m.id === asstId ? { ...m, ...extra } : m)));
+      };
+
+      try {
+        const sessionId = await chatStream(
+          { skillIds: selectedSkills, message: content, sessionId: activeId, model: model || undefined },
+          {
+            onText: (t) => {
+              acc += t;
+              patch({ content: acc, media: [...media] });
+            },
+            onMedia: (b) => {
+              media.push(b);
+              patch({ content: acc, media: [...media] });
+            },
+            onDone: (payload) => {
+              // Fall back to the assembled content only when nothing else arrived.
+              if (payload.content && !acc && media.length === 0) acc = payload.content;
+            },
+            onError: (msg) => {
+              if (!acc) acc = `Error: ${msg}`;
+            },
+          },
+          controller.signal,
+        );
+
+        patch({ content: acc || 'The skill finished but returned no displayable content.', media, streaming: false });
+        if (sessionId) {
+          setActiveId(sessionId);
+          refreshSessions();
+        }
+      } catch (e) {
+        if (controller.signal.aborted) return;
+        const msg = (e as Error).message || 'Request failed';
+        patch({ content: acc || `Error: ${msg}`, media, streaming: false });
+        toast(msg);
+      } finally {
+        abortRef.current = null;
+        streamingRef.current = false;
+        setStreaming(false);
+      }
+    },
+    [selectedSkills, model, activeId, refreshSessions],
+  );
+
+  const contextLabel = useMemo(() => {
+    const parts: string[] = [];
+    if (selectedSkills.length) parts.push(`${selectedSkills.length} skills`);
+    if (model) {
+      const m = models.find((x) => x.id === model);
+      if (m) parts.push(m.label);
+    }
+    return parts.join(' · ');
+  }, [selectedSkills, model, models]);
+
+  const activeTitle = activeId ? sessions.find((s) => s.id === activeId)?.title ?? '' : '';
+
+  return (
+    <div className="flex h-full overflow-hidden">
+      <Sidebar
+        skills={skills}
+        selectedSkills={selectedSkills}
+        onToggleSkill={toggleSkill}
+        models={models}
+        model={model}
+        onModelChange={setModel}
+        sessions={sessions}
+        activeId={activeId}
+        onSelectSession={(id) => void selectSession(id)}
+        onDeleteSession={(id) => void handleDeleteSession(id)}
+        onPinSession={(id, pinned) => void handlePinSession(id, pinned)}
+        onNewChat={newChat}
+      />
+      <ChatArea
+        title={activeTitle}
+        contextLabel={contextLabel}
+        messages={messages}
+        streaming={streaming}
+        draft={draft}
+        onDraftChange={setDraft}
+        onSend={(t, a) => void sendMessage(t, a)}
+        authenticated={!!user}
+        onRequestLogin={openLogin}
+      />
+    </div>
+  );
+}
