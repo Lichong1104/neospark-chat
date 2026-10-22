@@ -50,7 +50,9 @@ export default function LoginModal() {
   };
 
   const google = () => {
-    window.location.href = googleLoginUrl(window.location.pathname);
+    // Carry the jump-in query through the OAuth round-trip so the intent
+    // (skill + message + auto) survives a full-page Google redirect.
+    window.location.href = googleLoginUrl(window.location.pathname + window.location.search);
   };
 
   const send = async () => {

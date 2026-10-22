@@ -71,7 +71,11 @@ export default function ChatPage() {
     if (auto && skillParam && messageParam) {
       setPendingAuto({ skill: skillParam, message: messageParam });
     }
-    if (skillParam || messageParam || auto) window.history.replaceState(null, '', window.location.pathname);
+    // Clear the query now, except for auto intents: those keep it so a
+    // full-page Google OAuth redirect can carry the intent back.
+    if ((skillParam || messageParam || auto) && !auto) {
+      window.history.replaceState(null, '', window.location.pathname);
+    }
   }, []);
 
   // Entering the chat requires a login — otherwise pop the login dialog.
@@ -219,6 +223,7 @@ export default function ChatPage() {
     const { skill, message } = pendingAuto;
     setPendingAuto(null);
     setSelectedSkills((prev) => (prev.includes(skill) ? prev : [...prev, skill]));
+    window.history.replaceState(null, '', window.location.pathname);
     void sendMessage(message, [], [skill]);
   }, [user, pendingAuto, sendMessage]);
 
