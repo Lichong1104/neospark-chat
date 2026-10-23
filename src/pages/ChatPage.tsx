@@ -3,6 +3,8 @@ import { toast } from 'sonner';
 import { useAuth } from '../auth/AuthContext';
 import Sidebar from '../components/Sidebar';
 import ChatArea from '../components/ChatArea';
+import PricingPage from './PricingPage';
+import BalancePage from './BalancePage';
 import { MODELS, SKILLS } from '../data/skills';
 import { chatStream, deleteSession, getSessionMessages, listModels, listSessions, listSkills, pinSession } from '../lib/api';
 import type { Attachment, MediaBlock, Message, Session } from '../types';
@@ -24,7 +26,7 @@ export default function ChatPage() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
-  const [model, setModel] = useState('');
+  const [model, setModel] = useState('gemini:gemini-4-argon');
   const [draft, setDraft] = useState('');
   const [pendingAuto, setPendingAuto] = useState<{ skill: string; message: string } | null>(null);
   const [streaming, setStreaming] = useState(false);
@@ -247,36 +249,49 @@ export default function ChatPage() {
     [sendMessage],
   );
 
+  const [view, setView] = useState<'chat' | 'pricing' | 'balance'>('chat');
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
   const activeTitle = activeId ? sessions.find((s) => s.id === activeId)?.title ?? '' : '';
 
   return (
     <div className="flex h-full overflow-hidden">
       <Sidebar
-        skills={skills}
-        selectedSkills={selectedSkills}
-        onToggleSkill={toggleSkill}
-        models={models}
-        model={model}
-        onModelChange={setModel}
         sessions={sessions}
         activeId={activeId}
         onSelectSession={(id) => void selectSession(id)}
         onDeleteSession={(id) => void handleDeleteSession(id)}
         onPinSession={(id, pinned) => void handlePinSession(id, pinned)}
         onNewChat={newChat}
+        view={view}
+        onNavigate={setView}
+        collapsed={sidebarCollapsed}
+        onToggleCollapsed={() => setSidebarCollapsed((v) => !v)}
       />
-      <ChatArea
-        title={activeTitle}
-        contextLabel={contextLabel}
-        messages={messages}
-        streaming={streaming}
-        draft={draft}
-        onDraftChange={setDraft}
-        onSend={(t, a) => void sendMessage(t, a)}
-        onConfirmSelect={handleConfirmSelect}
-        authenticated={!!user}
-        onRequestLogin={openLogin}
-      />
+      {view === 'chat' ? (
+        <ChatArea
+          title={activeTitle}
+          contextLabel={contextLabel}
+          messages={messages}
+          streaming={streaming}
+          draft={draft}
+          onDraftChange={setDraft}
+          onSend={(t, a) => void sendMessage(t, a)}
+          onConfirmSelect={handleConfirmSelect}
+          authenticated={!!user}
+          onRequestLogin={openLogin}
+          skills={skills}
+          selectedSkills={selectedSkills}
+          onToggleSkill={toggleSkill}
+          models={models}
+          model={model}
+          onModelChange={setModel}
+        />
+      ) : view === 'pricing' ? (
+        <PricingPage onBack={() => setView('chat')} />
+      ) : (
+        <BalancePage onBack={() => setView('chat')} />
+      )}
     </div>
   );
 }

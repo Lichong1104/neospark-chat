@@ -1,11 +1,11 @@
-import { useEffect, useRef, useState } from 'react';
-import { ArrowUp, FileText, Loader2, Paperclip, X } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { ArrowUp, Check, ChevronDown, FileText, Loader2, Paperclip, Search, X } from 'lucide-react';
 import { toast } from 'sonner';
-import type { Attachment, Message as ChatMessage } from '../types';
+import type { Attachment, Message as ChatMessage, ModelOption, Skill } from '../types';
 import { Message } from './Message';
 import Eyebrow from './Eyebrow';
 import { uploadFile } from '../lib/api';
-import { uid } from '../lib/utils';
+import { cn, uid } from '../lib/utils';
 
 interface ChatAreaProps {
   title: string;
@@ -18,6 +18,12 @@ interface ChatAreaProps {
   onConfirmSelect: (option: string) => void;
   authenticated: boolean;
   onRequestLogin: () => void;
+  skills: Skill[];
+  selectedSkills: string[];
+  onToggleSkill: (id: string) => void;
+  models: ModelOption[];
+  model: string;
+  onModelChange: (id: string) => void;
 }
 
 const SUGGESTIONS = [
@@ -37,16 +43,58 @@ export default function ChatArea({
   onConfirmSelect,
   authenticated,
   onRequestLogin,
+  skills,
+  selectedSkills,
+  onToggleSkill,
+  models,
+  model,
+  onModelChange,
 }: ChatAreaProps) {
   const listRef = useRef<HTMLDivElement>(null);
   const areaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const modelRef = useRef<HTMLDivElement>(null);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [modelOpen, setModelOpen] = useState(false);
+  const [slashOpen, setSlashOpen] = useState(false);
+  const [slashQuery, setSlashQuery] = useState('');
 
   useEffect(() => {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight });
   }, [messages]);
+
+  useEffect(() => {
+    if (!modelOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (modelRef.current && !modelRef.current.contains(e.target as Node)) setModelOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setModelOpen(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [modelOpen]);
+
+  const modelLabel = model ? models.find((m) => m.id === model)?.label ?? model : 'Model';
+
+  const filteredSkills = useMemo(() => {
+    const q = slashQuery.trim().toLowerCase();
+    return skills.filter((s) => !q || s.name.toLowerCase().includes(q) || s.id.toLowerCase().includes(q));
+  }, [skills, slashQuery]);
+
+  const closeSlash = (skillId?: string) => {
+    if (skillId) onToggleSkill(skillId);
+    setSlashOpen(false);
+    setSlashQuery('');
+    // Drop the trailing "/query" from the draft once a skill is picked.
+    const idx = draft.lastIndexOf('/');
+    if (idx >= 0) onDraftChange(draft.slice(0, idx).trimEnd());
+  };
 
   const send = () => {
     const text = draft.trim();
@@ -93,6 +141,40 @@ export default function ChatArea({
     setAttachments((prev) => prev.filter((a) => a.id !== id));
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (slashOpen) {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        closeSlash();
+        return;
+      }
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Enter') {
+        // Enter on the menu is handled by the buttons; arrow keys leave the list.
+        if (e.key === 'Enter') e.preventDefault();
+        return;
+      }
+    }
+    if (e.key === '/' && !draft.includes('/')) {
+      setSlashOpen(true);
+      setSlashQuery('');
+      return;
+    }
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      send();
+    }
+  };
+
+  const handleChange = (v: string) => {
+    onDraftChange(v);
+    grow();
+    if (slashOpen) {
+      const idx = v.lastIndexOf('/');
+      setSlashQuery(idx >= 0 ? v.slice(idx + 1) : '');
+      if (!v.includes('/')) setSlashOpen(false);
+    }
+  };
+
   return (
     <main className="flex h-full min-w-0 flex-1 flex-col">
       {/* Header */}
@@ -112,7 +194,7 @@ export default function ChatArea({
               One conversation, all your Skills
             </h1>
             <p className="mt-3 max-w-md text-[15px] leading-relaxed text-muted">
-              Pick one or more skills and a model on the left, then describe the result you want.
+              Pick one or more skills and a model below the input, then describe the result you want.
               Once connected, the skill's real output streams back here.
             </p>
             <div className="mt-8 flex flex-wrap justify-center gap-2">
@@ -173,60 +255,156 @@ export default function ChatArea({
           </div>
         )}
 
-        <div className="mx-auto flex max-w-3xl items-end gap-1.5 rounded-2xl border border-line bg-surface p-2 shadow-card">
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={uploading}
-            className="flex h-9 w-9 flex-none items-center justify-center rounded-xl text-muted-2 transition-colors hover:bg-line-soft hover:text-ink"
-            aria-label="Add attachment"
-            title="Add attachment"
-          >
-            <Paperclip className="h-4 w-4" />
-          </button>
-          <textarea
-            ref={areaRef}
-            rows={1}
-            value={draft}
-            onChange={(e) => {
-              onDraftChange(e.target.value);
-              grow();
-            }}
-            onFocus={() => {
-              if (!authenticated) onRequestLogin();
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                send();
-              }
-            }}
-            placeholder={authenticated ? 'Message NeoSpark…' : 'Sign in to start chatting…'}
-            className="max-h-[180px] min-h-[24px] flex-1 resize-none bg-transparent px-2 py-1.5 text-[0.95rem] leading-relaxed outline-none placeholder:text-muted-2"
-          />
-          <button
-            type="button"
-            onClick={send}
-            disabled={(!draft.trim() && attachments.length === 0) || streaming}
-            aria-label="Send"
-            className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-ink text-surface shadow-[0_1px_2px_rgba(10,10,10,.3),0_8px_18px_-8px_rgba(10,10,10,.5)] transition-transform duration-200 hover:scale-105 disabled:scale-100 disabled:opacity-30"
-          >
-            <ArrowUp className="h-4 w-4" />
-          </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            multiple
-            className="hidden"
-            onChange={(e) => {
-              void handleFiles(e.target.files);
-              e.target.value = '';
-            }}
-          />
-        </div>
-        <div className="mx-auto mt-2 flex max-w-3xl items-center justify-between text-[11px] text-muted-2">
-          <span>{authenticated ? 'Enter to send · Shift+Enter for newline' : 'Not signed in — sign in to send'}</span>
-          <span>{streaming ? 'Generating…' : contextLabel}</span>
+        <div className="mx-auto max-w-3xl">
+          {/* Skill + model row */}
+          <div className="mb-2 flex flex-wrap items-center gap-1.5">
+            {selectedSkills.map((id) => {
+              const skill = skills.find((s) => s.id === id);
+              if (!skill) return null;
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => onToggleSkill(id)}
+                  title={skill.description}
+                  className="flex items-center gap-1.5 rounded-full border border-ink bg-ink px-2.5 py-1 text-[12px] font-semibold text-surface transition-opacity hover:opacity-80"
+                >
+                  <span className="text-[13px] leading-none">{skill.emoji}</span>
+                  {skill.name}
+                  <X className="h-3 w-3 opacity-70" />
+                </button>
+              );
+            })}
+            <button
+              type="button"
+              onClick={() => {
+                setSlashOpen(true);
+                setSlashQuery('');
+                areaRef.current?.focus();
+              }}
+              title="Add a skill"
+              className="flex items-center gap-1 rounded-full border border-dashed border-line px-2.5 py-1 text-[12px] font-semibold text-muted transition-colors hover:border-ink hover:text-ink"
+            >
+              <span className="text-[13px] leading-none">+</span>
+              Skill
+            </button>
+
+            <div className="relative ml-auto" ref={modelRef}>
+              <button
+                type="button"
+                onClick={() => setModelOpen((v) => !v)}
+                className="flex items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1 text-[12px] font-semibold text-ink-2 transition-colors hover:border-ink"
+              >
+                {modelLabel}
+                <ChevronDown className={cn('h-3.5 w-3.5 text-muted-2 transition-transform', modelOpen && 'rotate-180')} />
+              </button>
+              {modelOpen && (
+                <div className="absolute bottom-full right-0 z-30 mb-1 w-52 overflow-hidden rounded-xl border border-line bg-surface p-1 shadow-panel">
+                  {models.map((m) => (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => {
+                        onModelChange(m.id);
+                        setModelOpen(false);
+                      }}
+                      className={cn(
+                        'flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-left text-[13px] font-semibold transition-colors',
+                        model === m.id ? 'bg-line-soft text-ink' : 'text-ink-2 hover:bg-paper',
+                      )}
+                    >
+                      {m.label}
+                      {model === m.id && <Check className="h-3.5 w-3.5 flex-none text-orange-deep" />}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Input shell */}
+          <div className="relative flex items-end gap-1.5 rounded-2xl border border-line bg-surface p-2 shadow-card">
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              className="flex h-9 w-9 flex-none items-center justify-center rounded-xl text-muted-2 transition-colors hover:bg-line-soft hover:text-ink"
+              aria-label="Add attachment"
+              title="Add attachment"
+            >
+              <Paperclip className="h-4 w-4" />
+            </button>
+            <textarea
+              ref={areaRef}
+              rows={1}
+              value={draft}
+              onChange={(e) => handleChange(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder={authenticated ? 'Message NeoSpark… use / to add a skill' : 'Sign in to start chatting…'}
+              className="max-h-[180px] min-h-[24px] flex-1 resize-none bg-transparent px-2 py-1.5 text-[0.95rem] leading-relaxed outline-none placeholder:text-muted-2"
+            />
+            <button
+              type="button"
+              onClick={send}
+              disabled={(!draft.trim() && attachments.length === 0) || streaming}
+              aria-label="Send"
+              className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-ink text-surface shadow-[0_1px_2px_rgba(10,10,10,.3),0_8px_18px_-8px_rgba(10,10,10,.5)] transition-transform duration-200 hover:scale-105 disabled:scale-100 disabled:opacity-30"
+            >
+              <ArrowUp className="h-4 w-4" />
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              className="hidden"
+              onChange={(e) => {
+                void handleFiles(e.target.files);
+                e.target.value = '';
+              }}
+            />
+
+            {/* Slash skill menu */}
+            {slashOpen && (
+              <div className="absolute bottom-full left-0 right-0 z-30 mb-1 max-h-64 overflow-y-auto rounded-xl border border-line bg-surface p-1 shadow-panel">
+                <div className="flex items-center gap-2 px-2.5 py-2 text-[11px] font-bold uppercase tracking-[0.14em] text-muted-2">
+                  <Search className="h-3.5 w-3.5" />
+                  Select a skill
+                </div>
+                {filteredSkills.length === 0 ? (
+                  <p className="px-2.5 py-2 text-[13px] text-muted-2">No skills match.</p>
+                ) : (
+                  filteredSkills.map((skill) => {
+                    const active = selectedSkills.includes(skill.id);
+                    return (
+                      <button
+                        key={skill.id}
+                        type="button"
+                        onClick={() => closeSlash(skill.id)}
+                        className={cn(
+                          'flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors',
+                          active ? 'bg-line-soft' : 'hover:bg-paper',
+                        )}
+                      >
+                        <span className="text-[15px] leading-none">{skill.emoji}</span>
+                        <span className="min-w-0 flex-1">
+                          <span className={cn('block truncate text-[13px] font-semibold', active ? 'text-ink' : 'text-ink-2')}>
+                            {skill.name}
+                          </span>
+                          <span className="block truncate text-[11px] text-muted-2">{skill.description}</span>
+                        </span>
+                        {active && <Check className="h-3.5 w-3.5 flex-none text-orange-deep" />}
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="mt-2 flex items-center justify-between text-[11px] text-muted-2">
+            <span>{authenticated ? 'Enter to send · Shift+Enter for newline · / to add a skill' : 'Not signed in — sign in to send'}</span>
+            <span>{streaming ? 'Generating…' : contextLabel}</span>
+          </div>
         </div>
       </div>
     </main>

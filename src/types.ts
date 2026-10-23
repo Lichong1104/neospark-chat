@@ -61,3 +61,28 @@ export interface UserInfo {
   balance: number;
   is_admin: boolean;
 }
+
+/** Stripe subscription state from GET /billing/state. */
+export interface SubscriptionState {
+  stripeSubscriptionId: string;
+  stripePriceId: string;
+  planKey: string;
+  billingInterval: string;
+  status: string;
+  currentPeriodEnd: string | null;
+  cancelAtPeriodEnd: boolean;
+}
+
+export interface BillingState {
+  user: { id: number; email: string } | null;
+  subscription: SubscriptionState | null;
+}
+
+/** Credit balance from GET /balance. */
+export interface BalanceInfo {
+  total_points: number;
+  frozen_points: number;
+  available_points: number;
+  points_expires_at: string | null;
+  points_expired: boolean;
+}

@@ -1,5 +1,5 @@
 import axios from 'axios';
-import type { ConfirmPrompt, MediaBlock, ModelOption, Session, Skill, UserInfo } from '../types';
+import type { BalanceInfo, BillingState, ConfirmPrompt, MediaBlock, ModelOption, Session, Skill, UserInfo } from '../types';
 import { emojiFor } from '../data/skills';
 
 const API_BASE =
@@ -110,6 +110,29 @@ export async function listSkills(): Promise<Skill[]> {
 export async function listModels(): Promise<ModelOption[]> {
   const res = (await http.get('/agents/models')) as unknown as { data?: ModelOption[] };
   return res?.data ?? [];
+}
+
+/* ------------------------------------------------------------- billing -- */
+
+export async function getBillingState(): Promise<BillingState> {
+  const res = (await http.get('/billing/state')) as unknown as BillingState;
+  return res ?? { user: null, subscription: null };
+}
+
+export async function getBalance(): Promise<BalanceInfo> {
+  return (await http.get('/balance')) as unknown as BalanceInfo;
+}
+
+export async function createCheckout(plan: string, interval: string): Promise<string> {
+  const res = (await http.post('/billing/checkout', { plan, interval })) as unknown as { url?: string };
+  if (!res?.url) throw new Error('No checkout URL returned');
+  return res.url;
+}
+
+export async function getBillingPortal(): Promise<string> {
+  const res = (await http.post('/billing/portal')) as unknown as { url?: string };
+  if (!res?.url) throw new Error('No portal URL returned');
+  return res.url;
 }
 
 /* ------------------------------------------------------------- history -- */
