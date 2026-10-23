@@ -92,20 +92,25 @@ export default function BalancePage({ onBack }: { onBack: () => void }) {
             ) : (
               <div className="mt-3 overflow-hidden rounded-2xl border border-line bg-surface shadow-card">
                 <ul className="divide-y divide-line-soft">
-                  {transactions.map((t) => (
-                    <li key={t.id} className="flex items-center justify-between gap-3 px-4 py-3">
-                      <div className="min-w-0">
-                        <div className="text-[13px] font-semibold">{t.type_name}</div>
-                        <div className="truncate text-[12px] text-muted-2">
-                          {t.description || t.biz_type || ''}
-                          {t.created_at ? ` · ${new Date(t.created_at).toLocaleString('en-US')}` : ''}
+                  {transactions.map((t) => {
+                    const isDebit = t.type === 'consume' || t.type === 'reserve' || t.type === 'expire';
+                    const isCredit = t.type === 'grant' || t.type === 'release';
+                    const sign = isDebit ? '-' : isCredit ? '+' : t.points >= 0 ? '+' : '';
+                    return (
+                      <li key={t.id} className="flex items-center justify-between gap-3 px-4 py-3">
+                        <div className="min-w-0">
+                          <div className="text-[13px] font-semibold">{t.type_name}</div>
+                          <div className="truncate text-[12px] text-muted-2">
+                            {t.description || t.biz_type || ''}
+                            {t.created_at ? ` · ${new Date(t.created_at).toLocaleString('en-US')}` : ''}
+                          </div>
                         </div>
-                      </div>
-                      <div className={`flex-none text-[13px] font-bold ${t.points >= 0 ? 'text-[#03704d]' : 'text-ink'}`}>
-                        {t.points >= 0 ? '+' : ''}{t.points.toLocaleString('en-US')}
-                      </div>
-                    </li>
-                  ))}
+                        <div className={`flex-none text-[13px] font-bold ${isCredit ? 'text-[#03704d]' : 'text-ink'}`}>
+                          {sign}{Math.abs(t.points).toLocaleString('en-US')}
+                        </div>
+                      </li>
+                    );
+                  })}
                 </ul>
               </div>
             )}
