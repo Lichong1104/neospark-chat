@@ -33,6 +33,22 @@ const SUGGESTIONS = [
   'Write a Xiaohongshu-style promo post',
 ];
 
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+/** Highlight `@SkillName` mentions in the composer backdrop. */
+function renderDraft(draft: string, skills: Skill[]): string {
+  let html = escapeHtml(draft);
+  const sorted = [...skills].sort((a, b) => b.name.length - a.name.length);
+  for (const skill of sorted) {
+    const token = escapeHtml(`@${skill.name}`);
+    if (!token || token === '@') continue;
+    html = html.split(token).join(`<span class="mention-chip">${token}</span>`);
+  }
+  return html;
+}
+
 export default function ChatArea({
   title,
   contextLabel,
@@ -62,6 +78,7 @@ export default function ChatArea({
   const [slashOpen, setSlashOpen] = useState(false);
   const [slashQuery, setSlashQuery] = useState('');
   const [slashIndex, setSlashIndex] = useState(0);
+  const [mentionMode, setMentionMode] = useState<'select' | 'mention'>('select');
   const slashRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -90,13 +107,14 @@ export default function ChatArea({
       if (slashRef.current && !slashRef.current.contains(e.target as Node)) {
         setSlashOpen(false);
         setSlashQuery('');
-        const idx = draft.lastIndexOf('/');
+        const trigger = mentionMode === 'mention' ? '@' : '/';
+        const idx = draft.lastIndexOf(trigger);
         if (idx >= 0) onDraftChange(draft.slice(0, idx).trimEnd());
       }
     };
     document.addEventListener('mousedown', onDown);
     return () => document.removeEventListener('mousedown', onDown);
-  }, [slashOpen, draft, onDraftChange]);
+  }, [slashOpen, draft, mentionMode, onDraftChange]);
 
   useEffect(() => {
     if (!slashOpen) return;
@@ -112,12 +130,25 @@ export default function ChatArea({
   }, [skills, slashQuery]);
 
   const closeSlash = (skillId?: string) => {
-    if (skillId) onToggleSkill(skillId);
+    const trigger = mentionMode === 'mention' ? '@' : '/';
+    if (skillId) {
+      if (mentionMode === 'mention') {
+        const skill = skills.find((s) => s.id === skillId);
+        if (skill) {
+          const idx = draft.lastIndexOf(trigger);
+          const base = idx >= 0 ? draft.slice(0, idx) : draft;
+          onDraftChange(`${base}@${skill.name} `.replace(/^\s+/, ''));
+        }
+      } else {
+        onToggleSkill(skillId);
+      }
+    }
     setSlashOpen(false);
     setSlashQuery('');
-    // Drop the trailing "/query" from the draft once a skill is picked.
-    const idx = draft.lastIndexOf('/');
-    if (idx >= 0) onDraftChange(draft.slice(0, idx).trimEnd());
+    if (mentionMode === 'select') {
+      const idx = draft.lastIndexOf('/');
+      if (idx >= 0) onDraftChange(draft.slice(0, idx).trimEnd());
+    }
   };
 
   const send = () => {
@@ -189,7 +220,15 @@ export default function ChatArea({
         return;
       }
     }
-    if (e.key === '/' && !draft.includes('/')) {
+    if (e.key === '@') {
+      setMentionMode('mention');
+      setSlashOpen(true);
+      setSlashQuery('');
+      setSlashIndex(0);
+      return;
+    }
+    if (e.key === '/') {
+      setMentionMode('select');
       setSlashOpen(true);
       setSlashQuery('');
       setSlashIndex(0);
@@ -205,10 +244,11 @@ export default function ChatArea({
     onDraftChange(v);
     grow();
     if (slashOpen) {
-      const idx = v.lastIndexOf('/');
+      const trigger = mentionMode === 'mention' ? '@' : '/';
+      const idx = v.lastIndexOf(trigger);
       setSlashQuery(idx >= 0 ? v.slice(idx + 1) : '');
       setSlashIndex(0);
-      if (!v.includes('/')) setSlashOpen(false);
+      if (!v.includes(trigger)) setSlashOpen(false);
     }
   };
 
@@ -378,16 +418,23 @@ export default function ChatArea({
             >
               <Paperclip className="h-4 w-4" />
             </button>
-            <textarea
-              ref={areaRef}
-              rows={1}
-              value={draft}
-              disabled={streaming}
-              onChange={(e) => handleChange(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder={authenticated ? 'Message NeoSpark… use / to add a skill' : 'Sign in to start chatting…'}
-              className="max-h-[180px] min-h-[24px] flex-1 resize-none bg-transparent px-2 py-1.5 text-[0.95rem] leading-relaxed outline-none placeholder:text-muted-2 disabled:cursor-not-allowed disabled:opacity-60"
-            />
+            <div className="relative min-w-0 flex-1">
+              <div
+                className="pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap break-words px-2 py-1.5 text-[0.95rem] leading-relaxed"
+                dangerouslySetInnerHTML={{ __html: renderDraft(draft, skills) }}
+                aria-hidden="true"
+              />
+              <textarea
+                ref={areaRef}
+                rows={1}
+                value={draft}
+                disabled={streaming}
+                onChange={(e) => handleChange(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder={authenticated ? 'Message NeoSpark… use @ to mention a skill' : 'Sign in to start chatting…'}
+                className="relative max-h-[180px] min-h-[24px] w-full resize-none bg-transparent px-2 py-1.5 text-[0.95rem] leading-relaxed text-transparent caret-ink outline-none placeholder:text-muted-2 disabled:cursor-not-allowed disabled:opacity-60"
+              />
+            </div>
             <button
               type="button"
               onClick={send}
@@ -450,7 +497,7 @@ export default function ChatArea({
           </div>
 
           <div className="mt-2 flex items-center justify-between text-[11px] text-muted-2">
-            <span>{authenticated ? 'Enter to send · Shift+Enter for newline · / to add a skill' : 'Not signed in — sign in to send'}</span>
+            <span>{authenticated ? 'Enter to send · / to pick a skill · @ to mention' : 'Not signed in — sign in to send'}</span>
             <span>{streaming ? 'Generating…' : contextLabel}</span>
           </div>
         </div>

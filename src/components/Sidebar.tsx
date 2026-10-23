@@ -249,7 +249,7 @@ export default function Sidebar({
                               <li key={s.id}>
                                 <div
                                   className={cn(
-                                    'group flex w-full items-center gap-0.5 rounded-xl px-1.5 py-1.5 transition-colors',
+                                    'group flex w-full animate-fade-up items-center gap-0.5 rounded-xl px-1.5 py-1.5 transition-colors',
                                     s.id === activeId ? 'bg-line-soft' : 'hover:bg-paper',
                                   )}
                                 >

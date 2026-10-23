@@ -68,6 +68,15 @@ textarea:focus-visible {
   outline: none;
 }
 
+/* @SkillName mentions highlighted in the composer backdrop. */
+.mention-chip {
+  background: rgba(255, 121, 62, 0.18);
+  color: #d94f1e;
+  border-radius: 6px;
+  padding: 0 3px;
+  font-weight: 600;
+}
+
 /* ------------------------------------------------------------- eyebrow --
    The tiny pill that opens a section — the catalogue's own signature. A live
    dot rather than a static caption, so a block reads as "attached to the
