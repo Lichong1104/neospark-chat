@@ -62,7 +62,6 @@ export default function ChatArea({
   const [slashOpen, setSlashOpen] = useState(false);
   const [slashQuery, setSlashQuery] = useState('');
   const [slashIndex, setSlashIndex] = useState(0);
-  const [mentionMode, setMentionMode] = useState<'select' | 'mention'>('select');
   const slashRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -105,14 +104,13 @@ export default function ChatArea({
       if (slashRef.current && !slashRef.current.contains(e.target as Node)) {
         setSlashOpen(false);
         setSlashQuery('');
-        const trigger = mentionMode === 'mention' ? '@' : '/';
-        const idx = draft.lastIndexOf(trigger);
+        const idx = draft.lastIndexOf('@');
         if (idx >= 0) onDraftChange(draft.slice(0, idx).trimEnd());
       }
     };
     document.addEventListener('mousedown', onDown);
     return () => document.removeEventListener('mousedown', onDown);
-  }, [slashOpen, draft, mentionMode, onDraftChange]);
+  }, [slashOpen, draft, onDraftChange]);
 
   useEffect(() => {
     if (!slashOpen) return;
@@ -127,23 +125,6 @@ export default function ChatArea({
     return skills.filter((s) => !q || s.name.toLowerCase().includes(q) || s.id.toLowerCase().includes(q));
   }, [skills, slashQuery]);
 
-  const removeTriggerText = (trigger: string) => {
-    const el = editorRef.current;
-    if (!el) return;
-    const text = el.innerText;
-    const idx = text.lastIndexOf(trigger);
-    if (idx < 0) return;
-    const next = text.slice(0, idx).trimEnd();
-    el.innerText = next;
-    onDraftChange(next);
-    const sel = window.getSelection();
-    const range = document.createRange();
-    range.selectNodeContents(el);
-    range.collapse(false);
-    sel?.removeAllRanges();
-    sel?.addRange(range);
-  };
-
   const insertMention = (skill: Skill) => {
     const el = editorRef.current;
     if (!el) return;
@@ -155,11 +136,9 @@ export default function ChatArea({
     const before = node.textContent || '';
     const offset = range.startOffset;
     const atIdx = before.lastIndexOf('@', offset - 1);
-    const slashIdx = before.lastIndexOf('/', offset - 1);
-    const triggerIdx = Math.max(atIdx, slashIdx);
-    if (triggerIdx < 0) return;
+    if (atIdx < 0) return;
 
-    range.setStart(node, triggerIdx);
+    range.setStart(node, atIdx);
     range.setEnd(node, offset);
     range.deleteContents();
 
@@ -176,19 +155,14 @@ export default function ChatArea({
     sel.addRange(range);
 
     onDraftChange(el.innerText || '');
+    // Mentioning a skill also selects it so it joins the run.
+    if (!selectedSkills.includes(skill.id)) onToggleSkill(skill.id);
   };
 
   const closeSlash = (skillId?: string) => {
     if (skillId) {
       const skill = skills.find((s) => s.id === skillId);
-      if (mentionMode === 'mention' && skill) {
-        insertMention(skill);
-      } else {
-        onToggleSkill(skillId);
-        removeTriggerText('/');
-      }
-    } else if (mentionMode === 'select') {
-      removeTriggerText('/');
+      if (skill) insertMention(skill);
     }
     setSlashOpen(false);
     setSlashQuery('');
@@ -205,12 +179,8 @@ export default function ChatArea({
       const node = range.startContainer;
       const before = (node.textContent || '').slice(0, range.startOffset);
       const atIdx = before.lastIndexOf('@');
-      const slashIdx = before.lastIndexOf('/');
-      const triggerIdx = Math.max(atIdx, slashIdx);
-      if (triggerIdx >= 0) {
-        const trigger = before[triggerIdx];
-        setMentionMode(trigger === '@' ? 'mention' : 'select');
-        setSlashQuery(before.slice(triggerIdx + 1));
+      if (atIdx >= 0) {
+        setSlashQuery(before.slice(atIdx + 1));
         setSlashIndex(0);
         setSlashOpen(true);
       } else if (slashOpen) {
@@ -285,14 +255,6 @@ export default function ChatArea({
       }
     }
     if (e.key === '@') {
-      setMentionMode('mention');
-      setSlashOpen(true);
-      setSlashQuery('');
-      setSlashIndex(0);
-      return;
-    }
-    if (e.key === '/') {
-      setMentionMode('select');
       setSlashOpen(true);
       setSlashQuery('');
       setSlashIndex(0);
@@ -409,21 +371,6 @@ export default function ChatArea({
                 </button>
               );
             })}
-            <button
-              type="button"
-              onClick={() => {
-                setSlashOpen(true);
-                setSlashQuery('');
-                editorRef.current?.focus();
-              }}
-              disabled={streaming}
-              title="Add a skill"
-              className="flex items-center gap-1 rounded-full border border-dashed border-line px-2.5 py-1 text-[12px] font-semibold text-muted transition-colors hover:border-ink hover:text-ink disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <span className="text-[13px] leading-none">+</span>
-              Skill
-            </button>
-
             <div className="relative ml-auto" ref={modelRef}>
               <button
                 type="button"
@@ -550,7 +497,7 @@ export default function ChatArea({
           </div>
 
           <div className="mt-2 flex items-center justify-between text-[11px] text-muted-2">
-            <span>{authenticated ? 'Enter to send · / to pick a skill · @ to mention' : 'Not signed in — sign in to send'}</span>
+            <span>{authenticated ? 'Enter to send · @ to mention a skill' : 'Not signed in — sign in to send'}</span>
             <span>{streaming ? 'Generating…' : contextLabel}</span>
           </div>
         </div>
