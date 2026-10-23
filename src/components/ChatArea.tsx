@@ -33,22 +33,6 @@ const SUGGESTIONS = [
   'Write a Xiaohongshu-style promo post',
 ];
 
-function escapeHtml(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
-
-/** Highlight `@SkillName` mentions in the composer backdrop. */
-function renderDraft(draft: string, skills: Skill[]): string {
-  let html = escapeHtml(draft);
-  const sorted = [...skills].sort((a, b) => b.name.length - a.name.length);
-  for (const skill of sorted) {
-    const token = escapeHtml(`@${skill.name}`);
-    if (!token || token === '@') continue;
-    html = html.split(token).join(`<span class="mention-chip">${token}</span>`);
-  }
-  return html;
-}
-
 export default function ChatArea({
   title,
   contextLabel,
@@ -69,7 +53,7 @@ export default function ChatArea({
   onModelChange,
 }: ChatAreaProps) {
   const listRef = useRef<HTMLDivElement>(null);
-  const areaRef = useRef<HTMLTextAreaElement>(null);
+  const editorRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const modelRef = useRef<HTMLDivElement>(null);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
@@ -84,6 +68,20 @@ export default function ChatArea({
   useEffect(() => {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight });
   }, [messages]);
+
+  // Sync an externally-set draft (jump-in from the marketing site) into the editor.
+  useEffect(() => {
+    const el = editorRef.current;
+    if (el && draft && el.innerText !== draft) {
+      el.innerText = draft;
+      const sel = window.getSelection();
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      range.collapse(false);
+      sel?.removeAllRanges();
+      sel?.addRange(range);
+    }
+  }, [draft]);
 
   useEffect(() => {
     if (!modelOpen) return;
@@ -129,30 +127,101 @@ export default function ChatArea({
     return skills.filter((s) => !q || s.name.toLowerCase().includes(q) || s.id.toLowerCase().includes(q));
   }, [skills, slashQuery]);
 
+  const removeTriggerText = (trigger: string) => {
+    const el = editorRef.current;
+    if (!el) return;
+    const text = el.innerText;
+    const idx = text.lastIndexOf(trigger);
+    if (idx < 0) return;
+    const next = text.slice(0, idx).trimEnd();
+    el.innerText = next;
+    onDraftChange(next);
+    const sel = window.getSelection();
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    range.collapse(false);
+    sel?.removeAllRanges();
+    sel?.addRange(range);
+  };
+
+  const insertMention = (skill: Skill) => {
+    const el = editorRef.current;
+    if (!el) return;
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return;
+    const range = sel.getRangeAt(0);
+    const node = range.startContainer;
+    if (!(node instanceof Text)) return;
+    const before = node.textContent || '';
+    const offset = range.startOffset;
+    const atIdx = before.lastIndexOf('@', offset - 1);
+    const slashIdx = before.lastIndexOf('/', offset - 1);
+    const triggerIdx = Math.max(atIdx, slashIdx);
+    if (triggerIdx < 0) return;
+
+    range.setStart(node, triggerIdx);
+    range.setEnd(node, offset);
+    range.deleteContents();
+
+    const chip = document.createElement('span');
+    chip.contentEditable = 'false';
+    chip.className = 'mention-chip';
+    chip.textContent = `@${skill.name}`;
+    const space = document.createTextNode(' ');
+    range.insertNode(space);
+    range.insertNode(chip);
+    range.setStartAfter(space);
+    range.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(range);
+
+    onDraftChange(el.innerText || '');
+  };
+
   const closeSlash = (skillId?: string) => {
-    const trigger = mentionMode === 'mention' ? '@' : '/';
     if (skillId) {
-      if (mentionMode === 'mention') {
-        const skill = skills.find((s) => s.id === skillId);
-        if (skill) {
-          const idx = draft.lastIndexOf(trigger);
-          const base = idx >= 0 ? draft.slice(0, idx) : draft;
-          onDraftChange(`${base}@${skill.name} `.replace(/^\s+/, ''));
-        }
+      const skill = skills.find((s) => s.id === skillId);
+      if (mentionMode === 'mention' && skill) {
+        insertMention(skill);
       } else {
         onToggleSkill(skillId);
+        removeTriggerText('/');
       }
+    } else if (mentionMode === 'select') {
+      removeTriggerText('/');
     }
     setSlashOpen(false);
     setSlashQuery('');
-    if (mentionMode === 'select') {
-      const idx = draft.lastIndexOf('/');
-      if (idx >= 0) onDraftChange(draft.slice(0, idx).trimEnd());
+  };
+
+  const handleEditorInput = () => {
+    const el = editorRef.current;
+    if (!el) return;
+    const text = el.innerText;
+    onDraftChange(text);
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0) {
+      const range = sel.getRangeAt(0);
+      const node = range.startContainer;
+      const before = (node.textContent || '').slice(0, range.startOffset);
+      const atIdx = before.lastIndexOf('@');
+      const slashIdx = before.lastIndexOf('/');
+      const triggerIdx = Math.max(atIdx, slashIdx);
+      if (triggerIdx >= 0) {
+        const trigger = before[triggerIdx];
+        setMentionMode(trigger === '@' ? 'mention' : 'select');
+        setSlashQuery(before.slice(triggerIdx + 1));
+        setSlashIndex(0);
+        setSlashOpen(true);
+      } else if (slashOpen) {
+        setSlashOpen(false);
+        setSlashQuery('');
+      }
     }
   };
 
   const send = () => {
-    const text = draft.trim();
+    const text = (editorRef.current?.innerText ?? draft).trim();
     if ((!text && attachments.length === 0) || streaming) return;
     if (!authenticated) {
       onRequestLogin();
@@ -160,13 +229,8 @@ export default function ChatArea({
     }
     onSend(text, attachments);
     setAttachments([]);
-  };
-
-  const grow = () => {
-    const el = areaRef.current;
-    if (!el) return;
-    el.style.height = 'auto';
-    el.style.height = `${Math.min(el.scrollHeight, 180)}px`;
+    if (editorRef.current) editorRef.current.innerText = '';
+    onDraftChange('');
   };
 
   const handleFiles = async (files: FileList | null) => {
@@ -196,7 +260,7 @@ export default function ChatArea({
     setAttachments((prev) => prev.filter((a) => a.id !== id));
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (slashOpen) {
       if (e.key === 'Escape') {
         e.preventDefault();
@@ -237,18 +301,6 @@ export default function ChatArea({
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       send();
-    }
-  };
-
-  const handleChange = (v: string) => {
-    onDraftChange(v);
-    grow();
-    if (slashOpen) {
-      const trigger = mentionMode === 'mention' ? '@' : '/';
-      const idx = v.lastIndexOf(trigger);
-      setSlashQuery(idx >= 0 ? v.slice(idx + 1) : '');
-      setSlashIndex(0);
-      if (!v.includes(trigger)) setSlashOpen(false);
     }
   };
 
@@ -362,7 +414,7 @@ export default function ChatArea({
               onClick={() => {
                 setSlashOpen(true);
                 setSlashQuery('');
-                areaRef.current?.focus();
+                editorRef.current?.focus();
               }}
               disabled={streaming}
               title="Add a skill"
@@ -419,20 +471,21 @@ export default function ChatArea({
               <Paperclip className="h-4 w-4" />
             </button>
             <div className="relative min-w-0 flex-1">
+              {!draft && !streaming && (
+                <span className="pointer-events-none absolute left-2 top-1.5 text-[0.95rem] leading-relaxed text-muted-2">
+                  {authenticated ? 'Message NeoSpark… use @ to mention a skill' : 'Sign in to start chatting…'}
+                </span>
+              )}
               <div
-                className="pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap break-words px-2 py-1.5 text-[0.95rem] leading-relaxed"
-                dangerouslySetInnerHTML={{ __html: renderDraft(draft, skills) }}
-                aria-hidden="true"
-              />
-              <textarea
-                ref={areaRef}
-                rows={1}
-                value={draft}
-                disabled={streaming}
-                onChange={(e) => handleChange(e.target.value)}
+                ref={editorRef}
+                contentEditable={!streaming}
+                suppressContentEditableWarning
+                onInput={handleEditorInput}
                 onKeyDown={handleKeyDown}
-                placeholder={authenticated ? 'Message NeoSpark… use @ to mention a skill' : 'Sign in to start chatting…'}
-                className="relative max-h-[180px] min-h-[24px] w-full resize-none bg-transparent px-2 py-1.5 text-[0.95rem] leading-relaxed text-transparent caret-ink outline-none placeholder:text-muted-2 disabled:cursor-not-allowed disabled:opacity-60"
+                className={cn(
+                  'max-h-[180px] min-h-[24px] overflow-y-auto whitespace-pre-wrap break-words px-2 py-1.5 text-[0.95rem] leading-relaxed outline-none',
+                  streaming && 'cursor-not-allowed opacity-60',
+                )}
               />
             </div>
             <button
