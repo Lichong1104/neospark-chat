@@ -98,6 +98,12 @@ export default function ChatArea({
     return () => document.removeEventListener('mousedown', onDown);
   }, [slashOpen, draft, onDraftChange]);
 
+  useEffect(() => {
+    if (!slashOpen) return;
+    const el = slashRef.current?.querySelector(`[data-skill-index="${slashIndex}"]`);
+    el?.scrollIntoView({ block: 'nearest' });
+  }, [slashIndex, slashOpen]);
+
   const modelLabel = model ? models.find((m) => m.id === model)?.label ?? model : 'Model';
 
   const filteredSkills = useMemo(() => {
@@ -415,6 +421,7 @@ export default function ChatArea({
                       <button
                         key={skill.id}
                         type="button"
+                        data-skill-index={i}
                         onClick={() => closeSlash(skill.id)}
                         onMouseEnter={() => setSlashIndex(i)}
                         className={cn(
