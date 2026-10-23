@@ -172,6 +172,45 @@ export default function Sidebar({
           })}
         </div>
 
+        {/* Collapsed history: an icon that reveals the list on hover */}
+        {collapsed && (
+          <div className="group relative px-2 pb-3">
+            <button
+              type="button"
+              title="History"
+              className="flex w-full items-center justify-center rounded-xl py-2 text-muted-2 transition-colors hover:bg-paper hover:text-ink"
+            >
+              <MessageSquare className="h-4 w-4" />
+            </button>
+            <div className="invisible absolute left-full top-0 z-40 ml-1 max-h-[70vh] w-64 overflow-y-auto rounded-xl border border-line bg-surface p-1.5 shadow-panel opacity-0 transition-opacity group-hover:visible group-hover:opacity-100">
+              <p className="px-2 py-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-muted-2">History</p>
+              {sessions.length === 0 ? (
+                <p className="px-2 py-2 text-[13px] text-muted-2">No conversations yet.</p>
+              ) : (
+                sessions.map((s) => (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => {
+                      window.location.hash = '/';
+                      onSelectSession(s.id);
+                    }}
+                    className={cn(
+                      'flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors',
+                      s.id === activeId ? 'bg-line-soft' : 'hover:bg-paper',
+                    )}
+                  >
+                    <MessageSquare className="h-3.5 w-3.5 flex-none text-muted-2" />
+                    <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-ink-2">
+                      {s.title || 'New chat'}
+                    </span>
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+
         {/* History */}
         {!collapsed && (
           <div className="flex-1 overflow-y-auto px-3 pb-3">
@@ -208,7 +247,10 @@ export default function Sidebar({
                                 >
                                   <button
                                     type="button"
-                                    onClick={() => onSelectSession(s.id)}
+                                    onClick={() => {
+                                      window.location.hash = '/';
+                                      onSelectSession(s.id);
+                                    }}
                                     className="flex min-w-0 flex-1 items-center gap-2.5 rounded-lg px-1 py-0.5 text-left"
                                   >
                                     <MessageSquare className={cn('h-3.5 w-3.5 flex-none', s.id === activeId ? 'text-ink' : 'text-muted-2')} />
@@ -254,9 +296,9 @@ export default function Sidebar({
         )}
 
         {/* User footer */}
-        <div className={cn('border-t border-line-soft px-3 py-3', collapsed && 'px-2')}>
+        <div className={cn('mt-auto border-t border-line-soft px-3 py-3', collapsed && 'px-2')}>
           {user ? (
-            <div className={cn('flex items-center gap-2.5', collapsed && 'flex-col')}>
+            <div className={cn('flex items-center gap-2.5', collapsed && 'flex-col items-center justify-center')}>
               {user.avatar_url ? (
                 <img src={user.avatar_url} alt="" referrerPolicy="no-referrer" className="h-8 w-8 flex-none rounded-full object-cover" />
               ) : (

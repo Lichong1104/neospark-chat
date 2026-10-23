@@ -120,7 +120,7 @@ export async function getBillingState(): Promise<BillingState> {
 }
 
 export async function getBalance(): Promise<BalanceInfo> {
-  return (await http.get('/balance')) as unknown as BalanceInfo;
+  return (await http.get('/balance/balance')) as unknown as BalanceInfo;
 }
 
 export async function createCheckout(plan: string, interval: string): Promise<string> {

@@ -97,6 +97,7 @@ export default function ChatPage() {
     setActiveId(null);
     setMessages([]);
     setDraft('');
+    window.location.hash = '/';
   }, [cancelStream]);
 
   const selectSession = useCallback(
@@ -249,8 +250,26 @@ export default function ChatPage() {
     [sendMessage],
   );
 
-  const [view, setView] = useState<'chat' | 'pricing' | 'balance'>('chat');
+  const [view, setView] = useState<'chat' | 'pricing' | 'balance'>(() => {
+    const h = window.location.hash;
+    if (h === '#/pricing') return 'pricing';
+    if (h === '#/balance') return 'balance';
+    return 'chat';
+  });
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  useEffect(() => {
+    const onHash = () => {
+      const h = window.location.hash;
+      setView(h === '#/pricing' ? 'pricing' : h === '#/balance' ? 'balance' : 'chat');
+    };
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, []);
+
+  const navigate = useCallback((v: 'chat' | 'pricing' | 'balance') => {
+    window.location.hash = v === 'chat' ? '/' : `/${v}`;
+  }, []);
 
   const activeTitle = activeId ? sessions.find((s) => s.id === activeId)?.title ?? '' : '';
 
@@ -264,7 +283,7 @@ export default function ChatPage() {
         onPinSession={(id, pinned) => void handlePinSession(id, pinned)}
         onNewChat={newChat}
         view={view}
-        onNavigate={setView}
+        onNavigate={navigate}
         collapsed={sidebarCollapsed}
         onToggleCollapsed={() => setSidebarCollapsed((v) => !v)}
       />
@@ -288,9 +307,9 @@ export default function ChatPage() {
           onModelChange={setModel}
         />
       ) : view === 'pricing' ? (
-        <PricingPage onBack={() => setView('chat')} />
+        <PricingPage onBack={() => navigate('chat')} />
       ) : (
-        <BalancePage onBack={() => setView('chat')} />
+        <BalancePage onBack={() => navigate('chat')} />
       )}
     </div>
   );
