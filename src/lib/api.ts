@@ -1,5 +1,5 @@
 import axios from 'axios';
-import type { BalanceInfo, BillingState, ConfirmPrompt, MediaBlock, ModelOption, PointTransaction, Session, Skill, UserInfo } from '../types';
+import type { BalanceInfo, BillingState, ConfirmPrompt, MediaBlock, ModelOption, PlanStep, PointTransaction, Session, Skill, UserInfo } from '../types';
 import { emojiFor } from '../data/skills';
 
 const API_BASE =
@@ -254,6 +254,8 @@ export interface ChatStreamHandlers {
   onText: (text: string) => void;
   onMedia: (block: MediaBlock) => void;
   onConfirm?: (prompt: ConfirmPrompt) => void;
+  onPlan?: (steps: PlanStep[]) => void;
+  onStepDone?: (info: { completed: number; total: number }) => void;
   onDone: (payload: { content?: string; session_id?: string }) => void;
   onError: (message: string) => void;
 }
@@ -282,14 +284,23 @@ function parseSseEvent(
   }
   if (typeof data !== 'object' || data === null) return;
 
-  // Named events. Only `confirm` surfaces in the UI as tappable option cards;
-  // the rest (video_task / plan / step_done) are orchestration metadata.
+  // Named events: confirm (option cards), plan + step_done (task progress).
   if (eventName === 'confirm') {
     const c = data as Record<string, unknown>;
     handlers.onConfirm?.({
       question: String(c.question ?? ''),
       options: Array.isArray(c.options) ? c.options.map(String) : [],
     });
+    return;
+  }
+  if (eventName === 'plan') {
+    const p = data as Record<string, unknown>;
+    handlers.onPlan?.(Array.isArray(p.steps) ? (p.steps as PlanStep[]) : []);
+    return;
+  }
+  if (eventName === 'step_done') {
+    const p = data as Record<string, unknown>;
+    handlers.onStepDone?.({ completed: Number(p.completed ?? 0), total: Number(p.total ?? 0) });
     return;
   }
   if (eventName) return;

@@ -22,6 +22,13 @@ export interface ConfirmPrompt {
   options: string[];
 }
 
+/** One step in a multi-skill orchestration plan. */
+export interface PlanStep {
+  skill_id: string;
+  skill_name: string;
+  task: string;
+}
+
 export interface Attachment {
   id: string;
   uploadId: string;
@@ -38,6 +45,11 @@ export interface Message {
   media?: MediaBlock[];
   /** A confirmation the Skill is waiting on, rendered as tappable option cards. */
   confirm?: ConfirmPrompt;
+  /** A multi-skill orchestration plan, rendered as a task list. */
+  plan?: PlanStep[];
+  /** Progress of the plan: how many steps are done. */
+  stepCompleted?: number;
+  stepTotal?: number;
   /** True while the message is being streamed in. */
   streaming?: boolean;
   createdAt: number;

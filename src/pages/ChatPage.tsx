@@ -212,6 +212,12 @@ export default function ChatPage() {
             onConfirm: (prompt) => {
               patch({ confirm: prompt });
             },
+            onPlan: (steps) => {
+              patch({ plan: steps, stepCompleted: 0, stepTotal: steps.length });
+            },
+            onStepDone: (info) => {
+              patch({ stepCompleted: info.completed, stepTotal: info.total });
+            },
           },
           controller.signal,
         );

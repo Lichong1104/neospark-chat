@@ -1,6 +1,6 @@
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { FileText } from 'lucide-react';
+import { Check, FileText } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import type { Message as ChatMessage } from '../types';
 import { cn } from '../lib/utils';
@@ -119,6 +119,41 @@ export function Message({
                   </a>
                 );
               })}
+            </div>
+          ) : null}
+
+          {message.plan && message.plan.length > 0 ? (
+            <div className="mt-3 rounded-xl border border-line bg-paper/60 p-3">
+              <div className="flex items-center justify-between">
+                <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-muted-2">Task plan</p>
+                {typeof message.stepCompleted === 'number' && message.stepTotal ? (
+                  <span className="text-[11px] font-semibold text-muted-2">
+                    {message.stepCompleted}/{message.stepTotal}
+                  </span>
+                ) : null}
+              </div>
+              <ol className="mt-2 space-y-1.5">
+                {message.plan.map((step, i) => {
+                  const done = typeof message.stepCompleted === 'number' && i < message.stepCompleted;
+                  const active = typeof message.stepCompleted === 'number' && i === message.stepCompleted;
+                  return (
+                    <li key={i} className="flex items-start gap-2">
+                      <span
+                        className={cn(
+                          'mt-0.5 flex h-4 w-4 flex-none items-center justify-center rounded-full text-[10px] font-bold',
+                          done ? 'bg-ink text-surface' : active ? 'bg-orange/20 text-orange-deep' : 'bg-line-soft text-muted-2',
+                        )}
+                      >
+                        {done ? <Check className="h-3 w-3" /> : i + 1}
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block truncate text-[13px] font-semibold text-ink-2">{step.skill_name}</span>
+                        {step.task ? <span className="block truncate text-[12px] text-muted-2">{step.task}</span> : null}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ol>
             </div>
           ) : null}
 
