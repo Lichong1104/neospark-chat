@@ -62,6 +62,12 @@ body {
   border-radius: 8px;
 }
 
+/* The chat composer is a text field; focusing it should not draw the global
+   focus ring around the textarea. Its containing shell already signals focus. */
+textarea:focus-visible {
+  outline: none;
+}
+
 /* ------------------------------------------------------------- eyebrow --
    The tiny pill that opens a section — the catalogue's own signature. A live
    dot rather than a static caption, so a block reads as "attached to the
