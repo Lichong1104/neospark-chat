@@ -62,6 +62,7 @@ export default function ChatArea({
   const [slashOpen, setSlashOpen] = useState(false);
   const [slashQuery, setSlashQuery] = useState('');
   const [slashIndex, setSlashIndex] = useState(0);
+  const [mentionMode, setMentionMode] = useState<'select' | 'mention'>('mention');
   const slashRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -162,7 +163,10 @@ export default function ChatArea({
   const closeSlash = (skillId?: string) => {
     if (skillId) {
       const skill = skills.find((s) => s.id === skillId);
-      if (skill) insertMention(skill);
+      if (skill) {
+        if (mentionMode === 'mention') insertMention(skill);
+        else onToggleSkill(skillId);
+      }
     }
     setSlashOpen(false);
     setSlashQuery('');
@@ -255,6 +259,7 @@ export default function ChatArea({
       }
     }
     if (e.key === '@') {
+      setMentionMode('mention');
       setSlashOpen(true);
       setSlashQuery('');
       setSlashIndex(0);
@@ -371,6 +376,21 @@ export default function ChatArea({
                 </button>
               );
             })}
+            <button
+              type="button"
+              onClick={() => {
+                setMentionMode('select');
+                setSlashOpen(true);
+                setSlashQuery('');
+                setSlashIndex(0);
+              }}
+              disabled={streaming}
+              title="Select a skill"
+              className="flex items-center gap-1 rounded-full border border-dashed border-line px-2.5 py-1 text-[12px] font-semibold text-muted transition-colors hover:border-ink hover:text-ink disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <span className="text-[13px] leading-none">+</span>
+              Skill
+            </button>
             <div className="relative ml-auto" ref={modelRef}>
               <button
                 type="button"
