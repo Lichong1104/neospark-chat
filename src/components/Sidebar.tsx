@@ -55,6 +55,7 @@ export default function Sidebar({
   const { user, isLoading, openLogin, signOut } = useAuth();
   const [groupCollapsed, setGroupCollapsed] = useState<Set<string>>(new Set());
   const [pendingDelete, setPendingDelete] = useState<{ id: string; title: string } | null>(null);
+  const [signOutConfirm, setSignOutConfirm] = useState(false);
   const [billing, setBilling] = useState<BillingState | null>(null);
   const [balance, setBalance] = useState<BalanceInfo | null>(null);
 
@@ -329,7 +330,7 @@ export default function Sidebar({
                   </div>
                   <button
                     type="button"
-                    onClick={() => void signOut()}
+                    onClick={() => setSignOutConfirm(true)}
                     title="Sign out"
                     className="rounded-lg p-1.5 text-muted-2 transition-colors hover:bg-line-soft hover:text-ink"
                   >
@@ -376,6 +377,38 @@ export default function Sidebar({
                 className="rounded-full bg-ink px-4 py-2 text-sm font-semibold text-surface shadow-[0_1px_2px_rgba(10,10,10,.16),0_10px_22px_-10px_rgba(10,10,10,.5)] transition-transform duration-200 hover:-translate-y-0.5"
               >
                 Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Sign out confirmation dialog */}
+      {signOutConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <button type="button" aria-label="Cancel" className="absolute inset-0 bg-ink/40 backdrop-blur-sm" onClick={() => setSignOutConfirm(false)} />
+          <div className="relative w-full max-w-xs rounded-2xl bg-surface p-6 shadow-panel" role="dialog" aria-modal="true">
+            <h3 className="text-base font-bold tracking-tight">Sign out?</h3>
+            <p className="mt-1.5 text-sm leading-relaxed text-muted">
+              You will be signed out of your account on this device.
+            </p>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setSignOutConfirm(false)}
+                className="rounded-full px-4 py-2 text-sm font-semibold text-muted transition-colors hover:text-ink"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setSignOutConfirm(false);
+                  void signOut();
+                }}
+                className="rounded-full bg-ink px-4 py-2 text-sm font-semibold text-surface shadow-[0_1px_2px_rgba(10,10,10,.16),0_10px_22px_-10px_rgba(10,10,10,.5)] transition-transform duration-200 hover:-translate-y-0.5"
+              >
+                Sign out
               </button>
             </div>
           </div>
