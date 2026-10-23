@@ -419,7 +419,7 @@ export default function ChatArea({
                         onMouseEnter={() => setSlashIndex(i)}
                         className={cn(
                           'flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors',
-                          highlighted ? 'bg-paper' : active ? 'bg-line-soft' : 'hover:bg-paper',
+                          highlighted ? 'bg-line-soft' : active ? 'bg-paper' : 'hover:bg-paper',
                         )}
                       >
                         <span className="text-[15px] leading-none">{skill.emoji}</span>
