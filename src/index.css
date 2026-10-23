@@ -63,8 +63,10 @@ body {
 }
 
 /* The chat composer is a text field; focusing it should not draw the global
-   focus ring around the textarea. Its containing shell already signals focus. */
-textarea:focus-visible {
+   focus ring. Its containing shell already signals focus. */
+textarea:focus-visible,
+[contenteditable]:focus-visible,
+[contenteditable]:focus {
   outline: none;
 }
 
