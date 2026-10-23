@@ -47,9 +47,11 @@ function ThinkingDots() {
 export function Message({
   message,
   onConfirmSelect,
+  disabled = false,
 }: {
   message: ChatMessage;
   onConfirmSelect: (option: string) => void;
+  disabled?: boolean;
 }) {
   if (message.role === 'user') {
     return (
@@ -128,7 +130,7 @@ export function Message({
                   <button
                     key={opt}
                     type="button"
-                    disabled={message.streaming}
+                    disabled={message.streaming || disabled}
                     onClick={() => onConfirmSelect(opt)}
                     className="rounded-full border border-line bg-surface px-3 py-1.5 text-[13px] font-medium text-ink-2 transition-colors hover:border-ink hover:text-ink disabled:cursor-not-allowed disabled:opacity-40"
                   >

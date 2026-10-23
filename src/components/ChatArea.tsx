@@ -254,7 +254,7 @@ export default function ChatArea({
         ) : (
           <div className="mx-auto flex max-w-3xl flex-col gap-5">
             {messages.map((m) => (
-              <Message key={m.id} message={m} onConfirmSelect={onConfirmSelect} />
+              <Message key={m.id} message={m} onConfirmSelect={onConfirmSelect} disabled={streaming} />
             ))}
           </div>
         )}
@@ -307,8 +307,9 @@ export default function ChatArea({
                   key={id}
                   type="button"
                   onClick={() => onToggleSkill(id)}
+                  disabled={streaming}
                   title={skill.description}
-                  className="flex items-center gap-1.5 rounded-full border border-ink bg-ink px-2.5 py-1 text-[12px] font-semibold text-surface transition-opacity hover:opacity-80"
+                  className="flex items-center gap-1.5 rounded-full border border-ink bg-ink px-2.5 py-1 text-[12px] font-semibold text-surface transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <span className="text-[13px] leading-none">{skill.emoji}</span>
                   {skill.name}
@@ -323,8 +324,9 @@ export default function ChatArea({
                 setSlashQuery('');
                 areaRef.current?.focus();
               }}
+              disabled={streaming}
               title="Add a skill"
-              className="flex items-center gap-1 rounded-full border border-dashed border-line px-2.5 py-1 text-[12px] font-semibold text-muted transition-colors hover:border-ink hover:text-ink"
+              className="flex items-center gap-1 rounded-full border border-dashed border-line px-2.5 py-1 text-[12px] font-semibold text-muted transition-colors hover:border-ink hover:text-ink disabled:cursor-not-allowed disabled:opacity-50"
             >
               <span className="text-[13px] leading-none">+</span>
               Skill
@@ -334,7 +336,8 @@ export default function ChatArea({
               <button
                 type="button"
                 onClick={() => setModelOpen((v) => !v)}
-                className="flex items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1 text-[12px] font-semibold text-ink-2 transition-colors hover:border-ink"
+                disabled={streaming}
+                className="flex items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1 text-[12px] font-semibold text-ink-2 transition-colors hover:border-ink disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {modelLabel}
                 <ChevronDown className={cn('h-3.5 w-3.5 text-muted-2 transition-transform', modelOpen && 'rotate-180')} />
@@ -368,8 +371,8 @@ export default function ChatArea({
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              disabled={uploading}
-              className="flex h-9 w-9 flex-none items-center justify-center rounded-xl text-muted-2 transition-colors hover:bg-line-soft hover:text-ink"
+              disabled={uploading || streaming}
+              className="flex h-9 w-9 flex-none items-center justify-center rounded-xl text-muted-2 transition-colors hover:bg-line-soft hover:text-ink disabled:cursor-not-allowed disabled:opacity-40"
               aria-label="Add attachment"
               title="Add attachment"
             >
@@ -379,10 +382,11 @@ export default function ChatArea({
               ref={areaRef}
               rows={1}
               value={draft}
+              disabled={streaming}
               onChange={(e) => handleChange(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder={authenticated ? 'Message NeoSpark… use / to add a skill' : 'Sign in to start chatting…'}
-              className="max-h-[180px] min-h-[24px] flex-1 resize-none bg-transparent px-2 py-1.5 text-[0.95rem] leading-relaxed outline-none placeholder:text-muted-2"
+              className="max-h-[180px] min-h-[24px] flex-1 resize-none bg-transparent px-2 py-1.5 text-[0.95rem] leading-relaxed outline-none placeholder:text-muted-2 disabled:cursor-not-allowed disabled:opacity-60"
             />
             <button
               type="button"
