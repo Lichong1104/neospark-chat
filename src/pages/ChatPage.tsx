@@ -104,6 +104,7 @@ export default function ChatPage() {
     cancelStream();
     setActiveId(null);
     setMessages([]);
+    setSelectedSkills([]);
     setDraft('');
     navigate('/');
   }, [cancelStream, navigate]);

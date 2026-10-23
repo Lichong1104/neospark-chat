@@ -61,6 +61,8 @@ export default function ChatArea({
   const [modelOpen, setModelOpen] = useState(false);
   const [slashOpen, setSlashOpen] = useState(false);
   const [slashQuery, setSlashQuery] = useState('');
+  const [slashIndex, setSlashIndex] = useState(0);
+  const slashRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight });
@@ -81,6 +83,20 @@ export default function ChatArea({
       document.removeEventListener('keydown', onKey);
     };
   }, [modelOpen]);
+
+  useEffect(() => {
+    if (!slashOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (slashRef.current && !slashRef.current.contains(e.target as Node)) {
+        setSlashOpen(false);
+        setSlashQuery('');
+        const idx = draft.lastIndexOf('/');
+        if (idx >= 0) onDraftChange(draft.slice(0, idx).trimEnd());
+      }
+    };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [slashOpen, draft, onDraftChange]);
 
   const modelLabel = model ? models.find((m) => m.id === model)?.label ?? model : 'Model';
 
@@ -150,15 +166,27 @@ export default function ChatArea({
         closeSlash();
         return;
       }
-      if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Enter') {
-        // Enter on the menu is handled by the buttons; arrow keys leave the list.
-        if (e.key === 'Enter') e.preventDefault();
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setSlashIndex((i) => Math.min(i + 1, filteredSkills.length - 1));
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setSlashIndex((i) => Math.max(i - 1, 0));
+        return;
+      }
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const skill = filteredSkills[slashIndex];
+        if (skill) closeSlash(skill.id);
         return;
       }
     }
     if (e.key === '/' && !draft.includes('/')) {
       setSlashOpen(true);
       setSlashQuery('');
+      setSlashIndex(0);
       return;
     }
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -173,6 +201,7 @@ export default function ChatArea({
     if (slashOpen) {
       const idx = v.lastIndexOf('/');
       setSlashQuery(idx >= 0 ? v.slice(idx + 1) : '');
+      setSlashIndex(0);
       if (!v.includes('/')) setSlashOpen(false);
     }
   };
@@ -371,7 +400,7 @@ export default function ChatArea({
 
             {/* Slash skill menu */}
             {slashOpen && (
-              <div className="absolute bottom-full left-0 right-0 z-30 mb-1 max-h-64 overflow-y-auto rounded-xl border border-line bg-surface p-1 shadow-panel">
+              <div ref={slashRef} className="absolute bottom-full left-0 right-0 z-30 mb-1 max-h-64 overflow-y-auto rounded-xl border border-line bg-surface p-1 shadow-panel">
                 <div className="flex items-center gap-2 px-2.5 py-2 text-[11px] font-bold uppercase tracking-[0.14em] text-muted-2">
                   <Search className="h-3.5 w-3.5" />
                   Select a skill
@@ -379,16 +408,18 @@ export default function ChatArea({
                 {filteredSkills.length === 0 ? (
                   <p className="px-2.5 py-2 text-[13px] text-muted-2">No skills match.</p>
                 ) : (
-                  filteredSkills.map((skill) => {
+                  filteredSkills.map((skill, i) => {
                     const active = selectedSkills.includes(skill.id);
+                    const highlighted = i === slashIndex;
                     return (
                       <button
                         key={skill.id}
                         type="button"
                         onClick={() => closeSlash(skill.id)}
+                        onMouseEnter={() => setSlashIndex(i)}
                         className={cn(
                           'flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors',
-                          active ? 'bg-line-soft' : 'hover:bg-paper',
+                          highlighted ? 'bg-paper' : active ? 'bg-line-soft' : 'hover:bg-paper',
                         )}
                       >
                         <span className="text-[15px] leading-none">{skill.emoji}</span>
