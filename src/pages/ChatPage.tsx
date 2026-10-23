@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import Sidebar from '../components/Sidebar';
 import ChatArea from '../components/ChatArea';
 import PricingPage from './PricingPage';
 import BalancePage from './BalancePage';
+import SubscriptionPage from './SubscriptionPage';
 import { MODELS, SKILLS } from '../data/skills';
 import { chatStream, deleteSession, getSessionMessages, listModels, listSessions, listSkills, pinSession } from '../lib/api';
 import type { Attachment, MediaBlock, Message, Session } from '../types';
@@ -19,6 +21,8 @@ function buildMessageWithAttachments(text: string, attachments: Attachment[]): s
 
 export default function ChatPage() {
   const { user, isLoading, openLogin } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
 
   const [skills, setSkills] = useState(SKILLS);
   const [models, setModels] = useState(MODELS);
@@ -30,6 +34,7 @@ export default function ChatPage() {
   const [draft, setDraft] = useState('');
   const [pendingAuto, setPendingAuto] = useState<{ skill: string; message: string } | null>(null);
   const [streaming, setStreaming] = useState(false);
+  const [loadingHistory, setLoadingHistory] = useState(false);
 
   const abortRef = useRef<AbortController | null>(null);
   const streamingRef = useRef(false);
@@ -97,8 +102,8 @@ export default function ChatPage() {
     setActiveId(null);
     setMessages([]);
     setDraft('');
-    window.location.hash = '/';
-  }, [cancelStream]);
+    navigate('/');
+  }, [cancelStream, navigate]);
 
   const selectSession = useCallback(
     async (id: string) => {
@@ -109,10 +114,13 @@ export default function ChatPage() {
         setSelectedSkills(s.skillIds);
         setModel(s.model ?? '');
       }
+      setLoadingHistory(true);
       try {
         setMessages(await getSessionMessages(id));
       } catch {
         setMessages([]);
+      } finally {
+        setLoadingHistory(false);
       }
     },
     [cancelStream, sessions],
@@ -250,26 +258,22 @@ export default function ChatPage() {
     [sendMessage],
   );
 
-  const [view, setView] = useState<'chat' | 'pricing' | 'balance'>(() => {
-    const h = window.location.hash;
-    if (h === '#/pricing') return 'pricing';
-    if (h === '#/balance') return 'balance';
+  const view: 'chat' | 'pricing' | 'balance' | 'subscription' = (() => {
+    const p = location.pathname;
+    if (p.startsWith('/pricing')) return 'pricing';
+    if (p.startsWith('/balance')) return 'balance';
+    if (p.startsWith('/subscription')) return 'subscription';
     return 'chat';
-  });
+  })();
+
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
-  useEffect(() => {
-    const onHash = () => {
-      const h = window.location.hash;
-      setView(h === '#/pricing' ? 'pricing' : h === '#/balance' ? 'balance' : 'chat');
-    };
-    window.addEventListener('hashchange', onHash);
-    return () => window.removeEventListener('hashchange', onHash);
-  }, []);
-
-  const navigate = useCallback((v: 'chat' | 'pricing' | 'balance') => {
-    window.location.hash = v === 'chat' ? '/' : `/${v}`;
-  }, []);
+  const go = useCallback(
+    (v: 'chat' | 'pricing' | 'balance' | 'subscription') => {
+      navigate(v === 'chat' ? '/' : `/${v}`);
+    },
+    [navigate],
+  );
 
   const activeTitle = activeId ? sessions.find((s) => s.id === activeId)?.title ?? '' : '';
 
@@ -283,7 +287,7 @@ export default function ChatPage() {
         onPinSession={(id, pinned) => void handlePinSession(id, pinned)}
         onNewChat={newChat}
         view={view}
-        onNavigate={navigate}
+        onNavigate={go}
         collapsed={sidebarCollapsed}
         onToggleCollapsed={() => setSidebarCollapsed((v) => !v)}
       />
@@ -293,6 +297,7 @@ export default function ChatPage() {
           contextLabel={contextLabel}
           messages={messages}
           streaming={streaming}
+          loadingHistory={loadingHistory}
           draft={draft}
           onDraftChange={setDraft}
           onSend={(t, a) => void sendMessage(t, a)}
@@ -307,9 +312,11 @@ export default function ChatPage() {
           onModelChange={setModel}
         />
       ) : view === 'pricing' ? (
-        <PricingPage onBack={() => navigate('chat')} />
+        <PricingPage onBack={() => go('chat')} />
+      ) : view === 'balance' ? (
+        <BalancePage onBack={() => go('chat')} />
       ) : (
-        <BalancePage onBack={() => navigate('chat')} />
+        <SubscriptionPage onBack={() => go('chat')} />
       )}
     </div>
   );

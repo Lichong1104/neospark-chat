@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ChevronDown, Coins, CreditCard, LogOut, MessageSquare, PanelLeftClose, PanelLeftOpen, Pin, Plus, Trash2, User } from 'lucide-react';
+import { ChevronDown, Coins, CreditCard, LogOut, MessageSquare, PanelLeftClose, PanelLeftOpen, Pin, Plus, Tag, Trash2, User } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import type { BalanceInfo, BillingState, Session } from '../types';
 import { cn } from '../lib/utils';
@@ -12,8 +12,8 @@ interface SidebarProps {
   onDeleteSession: (id: string) => void;
   onPinSession: (id: string, pinned: boolean) => void;
   onNewChat: () => void;
-  view: 'chat' | 'pricing' | 'balance';
-  onNavigate: (view: 'chat' | 'pricing' | 'balance') => void;
+  view: 'chat' | 'pricing' | 'balance' | 'subscription';
+  onNavigate: (view: 'chat' | 'pricing' | 'balance' | 'subscription') => void;
   collapsed: boolean;
   onToggleCollapsed: () => void;
 }
@@ -104,8 +104,9 @@ export default function Sidebar({
   };
 
   const navItems = [
-    { key: 'pricing', label: 'Pricing', icon: CreditCard },
+    { key: 'pricing', label: 'Pricing', icon: Tag },
     { key: 'balance', label: 'Balance & usage', icon: Coins },
+    { key: 'subscription', label: 'Subscription', icon: CreditCard },
   ] as const;
 
   const planLabel = billing?.subscription?.planKey;
@@ -192,7 +193,7 @@ export default function Sidebar({
                     key={s.id}
                     type="button"
                     onClick={() => {
-                      window.location.hash = '/';
+                      onNavigate('chat');
                       onSelectSession(s.id);
                     }}
                     className={cn(
@@ -248,7 +249,7 @@ export default function Sidebar({
                                   <button
                                     type="button"
                                     onClick={() => {
-                                      window.location.hash = '/';
+                                      onNavigate('chat');
                                       onSelectSession(s.id);
                                     }}
                                     className="flex min-w-0 flex-1 items-center gap-2.5 rounded-lg px-1 py-0.5 text-left"

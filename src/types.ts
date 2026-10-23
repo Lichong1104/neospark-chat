@@ -86,3 +86,17 @@ export interface BalanceInfo {
   points_expires_at: string | null;
   points_expired: boolean;
 }
+
+/** A single credit ledger entry from GET /drawing/billing/history. */
+export interface PointTransaction {
+  id: number;
+  type: string;
+  type_name: string;
+  points: number;
+  total_points_after: number;
+  frozen_points_after: number;
+  biz_type: string;
+  biz_id: string;
+  description: string | null;
+  created_at: string | null;
+}

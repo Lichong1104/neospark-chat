@@ -12,6 +12,7 @@ interface ChatAreaProps {
   contextLabel: string;
   messages: ChatMessage[];
   streaming: boolean;
+  loadingHistory: boolean;
   draft: string;
   onDraftChange: (text: string) => void;
   onSend: (text: string, attachments: Attachment[]) => void;
@@ -37,6 +38,7 @@ export default function ChatArea({
   contextLabel,
   messages,
   streaming,
+  loadingHistory,
   draft,
   onDraftChange,
   onSend,
@@ -187,7 +189,11 @@ export default function ChatArea({
 
       {/* Messages */}
       <div ref={listRef} className="flex-1 overflow-y-auto px-6 py-8">
-        {messages.length === 0 ? (
+        {loadingHistory ? (
+          <div className="flex h-full items-center justify-center">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-2" />
+          </div>
+        ) : messages.length === 0 ? (
           <div className="mx-auto flex max-w-2xl flex-col items-center pt-[10vh] text-center">
             <Eyebrow>NeoSpark Conversation</Eyebrow>
             <h1 className="mt-6 text-[2rem] font-bold leading-[1.15] tracking-[-0.03em]">

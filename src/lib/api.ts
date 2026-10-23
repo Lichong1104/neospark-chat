@@ -1,5 +1,5 @@
 import axios from 'axios';
-import type { BalanceInfo, BillingState, ConfirmPrompt, MediaBlock, ModelOption, Session, Skill, UserInfo } from '../types';
+import type { BalanceInfo, BillingState, ConfirmPrompt, MediaBlock, ModelOption, PointTransaction, Session, Skill, UserInfo } from '../types';
 import { emojiFor } from '../data/skills';
 
 const API_BASE =
@@ -133,6 +133,26 @@ export async function getBillingPortal(): Promise<string> {
   const res = (await http.post('/billing/portal')) as unknown as { url?: string };
   if (!res?.url) throw new Error('No portal URL returned');
   return res.url;
+}
+
+export async function getBillingHistory(limit = 30): Promise<PointTransaction[]> {
+  const res = (await http.get('/drawing/billing/history', { params: { limit } })) as unknown as {
+    data?: { transactions?: PointTransaction[] };
+  };
+  return res?.data?.transactions ?? [];
+}
+
+export interface CancelSubscriptionResult {
+  subscriptionId: string;
+  status: string;
+  cancelAtPeriodEnd: boolean;
+  refundAmount?: number | null;
+  refundReason?: string | null;
+  refundId?: string | null;
+}
+
+export async function cancelSubscription(immediately: boolean): Promise<CancelSubscriptionResult> {
+  return (await http.post('/billing/cancel-subscription', { immediately })) as unknown as CancelSubscriptionResult;
 }
 
 /* ------------------------------------------------------------- history -- */

@@ -1,19 +1,21 @@
 import { useEffect, useState } from 'react';
 import { ArrowLeft, CreditCard, Coins, Snowflake } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
-import { getBalance, getBillingPortal, getBillingState } from '../lib/api';
-import type { BalanceInfo, BillingState } from '../types';
+import { getBalance, getBillingHistory, getBillingPortal, getBillingState } from '../lib/api';
+import type { BalanceInfo, BillingState, PointTransaction } from '../types';
 
 export default function BalancePage({ onBack }: { onBack: () => void }) {
   const { user, openLogin } = useAuth();
   const [balance, setBalance] = useState<BalanceInfo | null>(null);
   const [billing, setBilling] = useState<BillingState | null>(null);
+  const [transactions, setTransactions] = useState<PointTransaction[]>([]);
   const [portalBusy, setPortalBusy] = useState(false);
 
   useEffect(() => {
     if (!user) return;
     getBalance().then(setBalance).catch(() => {});
     getBillingState().then(setBilling).catch(() => {});
+    getBillingHistory(30).then(setTransactions).catch(() => {});
   }, [user]);
 
   const manage = async () => {
@@ -140,6 +142,30 @@ export default function BalancePage({ onBack }: { onBack: () => void }) {
                 </div>
               )}
             </div>
+
+            <h2 className="mt-10 text-[1.25rem] font-bold tracking-[-0.02em]">Usage history</h2>
+            {transactions.length === 0 ? (
+              <p className="mt-3 text-[14px] text-muted">No usage yet.</p>
+            ) : (
+              <div className="mt-3 overflow-hidden rounded-2xl border border-line bg-surface shadow-card">
+                <ul className="divide-y divide-line-soft">
+                  {transactions.map((t) => (
+                    <li key={t.id} className="flex items-center justify-between gap-3 px-4 py-3">
+                      <div className="min-w-0">
+                        <div className="text-[13px] font-semibold">{t.type_name}</div>
+                        <div className="truncate text-[12px] text-muted-2">
+                          {t.description || t.biz_type || ''}
+                          {t.created_at ? ` · ${new Date(t.created_at).toLocaleString('en-US')}` : ''}
+                        </div>
+                      </div>
+                      <div className={`flex-none text-[13px] font-bold ${t.points >= 0 ? 'text-[#03704d]' : 'text-ink'}`}>
+                        {t.points >= 0 ? '+' : ''}{t.points.toLocaleString('en-US')}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </>
         )}
       </div>
