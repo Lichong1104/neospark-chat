@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ChevronDown, Coins, CreditCard, LogOut, MessageSquare, PanelLeftClose, PanelLeftOpen, Pin, Plus, Tag, Trash2, User } from 'lucide-react';
+import { ChevronDown, Coins, CreditCard, Loader2, LogOut, MessageSquare, PanelLeftClose, PanelLeftOpen, Pin, Plus, Tag, Trash2, User } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import type { BalanceInfo, BillingState, Session } from '../types';
 import { cn } from '../lib/utils';
@@ -8,6 +8,7 @@ import { getBalance, getBillingState } from '../lib/api';
 interface SidebarProps {
   sessions: Session[];
   activeId: string | null;
+  loadingSessions: boolean;
   onSelectSession: (id: string) => void;
   onDeleteSession: (id: string) => void;
   onPinSession: (id: string, pinned: boolean) => void;
@@ -41,6 +42,7 @@ const DAY = 86400000;
 export default function Sidebar({
   sessions,
   activeId,
+  loadingSessions,
   onSelectSession,
   onDeleteSession,
   onPinSession,
@@ -217,7 +219,11 @@ export default function Sidebar({
           <div className="flex-1 overflow-y-auto px-3 pb-3">
             <div className="pt-2">
               <div className="px-1 pb-2.5 text-[10px] font-bold uppercase tracking-[0.14em] text-muted-2">History</div>
-              {sessions.length === 0 ? (
+              {loadingSessions ? (
+                <div className="flex items-center justify-center py-4">
+                  <Loader2 className="h-4 w-4 animate-spin text-muted-2" />
+                </div>
+              ) : sessions.length === 0 ? (
                 <p className="px-1 py-2 text-[13px] text-muted-2">No conversations yet.</p>
               ) : (
                 groups

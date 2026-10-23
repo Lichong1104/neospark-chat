@@ -1,34 +1,19 @@
 import { useEffect, useState } from 'react';
-import { ArrowLeft, CreditCard, Coins, Snowflake } from 'lucide-react';
+import { ArrowLeft, Coins, Snowflake } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
-import { getBalance, getBillingHistory, getBillingPortal, getBillingState } from '../lib/api';
-import type { BalanceInfo, BillingState, PointTransaction } from '../types';
+import { getBalance, getBillingHistory } from '../lib/api';
+import type { BalanceInfo, PointTransaction } from '../types';
 
 export default function BalancePage({ onBack }: { onBack: () => void }) {
   const { user, openLogin } = useAuth();
   const [balance, setBalance] = useState<BalanceInfo | null>(null);
-  const [billing, setBilling] = useState<BillingState | null>(null);
   const [transactions, setTransactions] = useState<PointTransaction[]>([]);
-  const [portalBusy, setPortalBusy] = useState(false);
 
   useEffect(() => {
     if (!user) return;
     getBalance().then(setBalance).catch(() => {});
-    getBillingState().then(setBilling).catch(() => {});
     getBillingHistory(30).then(setTransactions).catch(() => {});
   }, [user]);
-
-  const manage = async () => {
-    setPortalBusy(true);
-    try {
-      const url = await getBillingPortal();
-      window.location.href = url;
-    } finally {
-      setPortalBusy(false);
-    }
-  };
-
-  const sub = billing?.subscription;
 
   return (
     <main className="flex h-full min-w-0 flex-1 flex-col overflow-y-auto">
@@ -100,48 +85,6 @@ export default function BalancePage({ onBack }: { onBack: () => void }) {
                 {new Date(balance.points_expires_at).toLocaleDateString('en-US')}
               </p>
             )}
-
-            <h2 className="mt-10 text-[1.25rem] font-bold tracking-[-0.02em]">Subscription</h2>
-            <div className="mt-3 rounded-2xl border border-line bg-surface p-5 shadow-card">
-              {sub ? (
-                <div className="flex items-center justify-between gap-4">
-                  <div className="flex items-center gap-3">
-                    <CreditCard className="h-5 w-5 text-orange-deep" />
-                    <div>
-                      <div className="text-[15px] font-semibold capitalize">
-                        {sub.planKey} · {sub.billingInterval}
-                      </div>
-                      <div className="text-[13px] text-muted-2">
-                        {sub.status === 'active'
-                          ? sub.cancelAtPeriodEnd
-                            ? `Cancels at ${sub.currentPeriodEnd ? new Date(sub.currentPeriodEnd).toLocaleDateString('en-US') : 'period end'}`
-                            : 'Active'
-                          : sub.status}
-                      </div>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => void manage()}
-                    disabled={portalBusy}
-                    className="rounded-full border border-ink px-4 py-2 text-sm font-semibold transition-colors hover:bg-ink hover:text-surface disabled:opacity-40"
-                  >
-                    Manage
-                  </button>
-                </div>
-              ) : (
-                <div className="flex items-center justify-between gap-4">
-                  <p className="text-[14px] text-muted">No active subscription.</p>
-                  <button
-                    type="button"
-                    onClick={() => onBack()}
-                    className="rounded-full bg-ink px-4 py-2 text-sm font-semibold text-surface"
-                  >
-                    See plans
-                  </button>
-                </div>
-              )}
-            </div>
 
             <h2 className="mt-10 text-[1.25rem] font-bold tracking-[-0.02em]">Usage history</h2>
             {transactions.length === 0 ? (

@@ -35,6 +35,7 @@ export default function ChatPage() {
   const [pendingAuto, setPendingAuto] = useState<{ skill: string; message: string } | null>(null);
   const [streaming, setStreaming] = useState(false);
   const [loadingHistory, setLoadingHistory] = useState(false);
+  const [loadingSessions, setLoadingSessions] = useState(false);
 
   const abortRef = useRef<AbortController | null>(null);
   const streamingRef = useRef(false);
@@ -50,9 +51,11 @@ export default function ChatPage() {
   }, []);
 
   const refreshSessions = useCallback(() => {
+    setLoadingSessions(true);
     listSessions()
       .then(setSessions)
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setLoadingSessions(false));
   }, []);
 
   // History needs auth; clear it when the visitor signs out.
@@ -282,6 +285,7 @@ export default function ChatPage() {
       <Sidebar
         sessions={sessions}
         activeId={activeId}
+        loadingSessions={loadingSessions}
         onSelectSession={(id) => void selectSession(id)}
         onDeleteSession={(id) => void handleDeleteSession(id)}
         onPinSession={(id, pinned) => void handlePinSession(id, pinned)}

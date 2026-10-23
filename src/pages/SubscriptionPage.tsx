@@ -1,11 +1,47 @@
 import { useEffect, useState } from 'react';
-import { ArrowLeft, CreditCard, TriangleAlert } from 'lucide-react';
+import { ArrowLeft, Check, CreditCard, TriangleAlert } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { cancelSubscription, getBillingState } from '../lib/api';
 import type { BillingState } from '../types';
 
+interface PlanDetail {
+  name: string;
+  blurb: string;
+  features: string[];
+}
+
+const PLAN_DETAILS: Record<string, PlanDetail> = {
+  free: {
+    name: 'FREE',
+    blurb: '当前为免费版。升级可解锁优先队列、更快生成速度和商业许可。',
+    features: ['200 积分/月', '基础 AI 模型', '标准队列', '仅限个人使用', '1× 速度'],
+  },
+  starter: {
+    name: 'Starter',
+    blurb: 'Perfect for beginners.',
+    features: ['2,000 积分/月', '所有技能', '标准图像质量', '1× 速度'],
+  },
+  growth: {
+    name: 'Growth',
+    blurb: 'Best value for creators.',
+    features: ['3,500 积分/月', '更高分辨率渲染', '优先队列', '1.5× 速度'],
+  },
+  pro: {
+    name: 'Pro',
+    blurb: 'For professional creators.',
+    features: ['11,000 积分/月', '4K 渲染', '视频技能', '2× 速度', '商业许可'],
+  },
+  ultimate: {
+    name: 'Ultimate',
+    blurb: 'For teams & studios.',
+    features: ['27,000 积分/月', '最快队列', '早期访问新技能', '3× 速度', '商业许可'],
+  },
+};
+
 export default function SubscriptionPage({ onBack }: { onBack: () => void }) {
   const { user, openLogin } = useAuth();
+  const navigate = useNavigate();
   const [billing, setBilling] = useState<BillingState | null>(null);
   const [busy, setBusy] = useState<'immediate' | 'period' | null>(null);
   const [confirmMode, setConfirmMode] = useState<'immediate' | 'period' | null>(null);
@@ -17,14 +53,8 @@ export default function SubscriptionPage({ onBack }: { onBack: () => void }) {
   }, [user]);
 
   const sub = billing?.subscription;
-
-  const refresh = async () => {
-    try {
-      setBilling(await getBillingState());
-    } catch {
-      // keep the current state on a transient refresh error
-    }
-  };
+  const planKey = sub?.planKey ?? 'free';
+  const plan = PLAN_DETAILS[planKey] ?? PLAN_DETAILS.free;
 
   const doCancel = async (immediately: boolean) => {
     setBusy(immediately ? 'immediate' : 'period');
@@ -32,7 +62,7 @@ export default function SubscriptionPage({ onBack }: { onBack: () => void }) {
     try {
       await cancelSubscription(immediately);
       setConfirmMode(null);
-      await refresh();
+      setBilling(await getBillingState());
     } catch (e) {
       setError((e as Error).message || 'Failed to cancel subscription');
     } finally {
@@ -69,24 +99,29 @@ export default function SubscriptionPage({ onBack }: { onBack: () => void }) {
             </button>
           </div>
         ) : (
-          <>
-            <h1 className="text-[1.5rem] font-bold tracking-[-0.03em]">Subscription</h1>
+          <div className="rounded-2xl border border-line bg-surface p-8 shadow-card">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <CreditCard className="h-5 w-5 text-orange-deep" />
+                  <h1 className="text-[1.75rem] font-bold tracking-[-0.03em]">{plan.name}</h1>
+                </div>
+                <p className="mt-2 max-w-md text-[14px] leading-relaxed text-muted">{plan.blurb}</p>
+              </div>
+            </div>
+
+            <ul className="mt-6 grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {plan.features.map((f) => (
+                <li key={f} className="flex items-center gap-2 text-[14px] text-ink-2">
+                  <Check className="h-4 w-4 flex-none text-orange-deep" />
+                  {f}
+                </li>
+              ))}
+            </ul>
 
             {sub ? (
-              <div className="mt-6 rounded-2xl border border-line bg-surface p-6 shadow-card">
-                <div className="flex items-center gap-3">
-                  <CreditCard className="h-6 w-6 text-orange-deep" />
-                  <div>
-                    <div className="text-lg font-bold capitalize">
-                      {sub.planKey} · {sub.billingInterval}
-                    </div>
-                    <div className="text-[13px] text-muted-2">
-                      Status: <span className="font-semibold capitalize">{sub.status}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <dl className="mt-6 grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
+              <>
+                <dl className="mt-8 grid grid-cols-2 gap-x-6 gap-y-3 border-t border-line-soft pt-6 text-sm">
                   <div>
                     <dt className="text-[12px] font-bold uppercase tracking-[0.12em] text-muted-2">Billing interval</dt>
                     <dd className="mt-1 font-medium capitalize">{sub.billingInterval}</dd>
@@ -96,6 +131,10 @@ export default function SubscriptionPage({ onBack }: { onBack: () => void }) {
                     <dd className="mt-1 font-medium">
                       {sub.currentPeriodEnd ? new Date(sub.currentPeriodEnd).toLocaleDateString('en-US') : '—'}
                     </dd>
+                  </div>
+                  <div>
+                    <dt className="text-[12px] font-bold uppercase tracking-[0.12em] text-muted-2">Status</dt>
+                    <dd className="mt-1 font-medium capitalize">{sub.status}</dd>
                   </div>
                   <div>
                     <dt className="text-[12px] font-bold uppercase tracking-[0.12em] text-muted-2">Renewal</dt>
@@ -109,7 +148,7 @@ export default function SubscriptionPage({ onBack }: { onBack: () => void }) {
                   <p className="mt-4 rounded-lg bg-orange/10 px-3 py-2 text-[13px] font-medium text-orange-deep">{error}</p>
                 )}
 
-                <div className="mt-6 flex flex-wrap gap-2 border-t border-line-soft pt-5">
+                <div className="mt-6 flex flex-wrap gap-2 border-t border-line-soft pt-6">
                   <button
                     type="button"
                     onClick={() => setConfirmMode('period')}
@@ -127,20 +166,19 @@ export default function SubscriptionPage({ onBack }: { onBack: () => void }) {
                     Cancel immediately
                   </button>
                 </div>
-              </div>
+              </>
             ) : (
-              <div className="mt-6 rounded-2xl border border-line bg-surface p-6 text-center shadow-card">
-                <p className="text-[14px] text-muted">You don't have an active subscription.</p>
+              <div className="mt-8 border-t border-line-soft pt-6">
                 <button
                   type="button"
-                  onClick={onBack}
-                  className="mt-4 rounded-full bg-ink px-5 py-2 text-sm font-semibold text-surface"
+                  onClick={() => navigate('/pricing')}
+                  className="rounded-full bg-ink px-6 py-2.5 text-sm font-semibold text-surface shadow-[0_1px_2px_rgba(10,10,10,.16),0_10px_22px_-10px_rgba(10,10,10,.5)] transition-transform duration-200 hover:-translate-y-0.5"
                 >
-                  See plans
+                  升级专业版
                 </button>
               </div>
             )}
-          </>
+          </div>
         )}
       </div>
 
