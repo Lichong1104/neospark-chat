@@ -44,7 +44,13 @@ function ThinkingDots() {
   );
 }
 
-export function Message({ message }: { message: ChatMessage }) {
+export function Message({
+  message,
+  onConfirmSelect,
+}: {
+  message: ChatMessage;
+  onConfirmSelect: (option: string) => void;
+}) {
   if (message.role === 'user') {
     return (
       <div className="animate-fade-up flex justify-end gap-2.5">
@@ -111,6 +117,25 @@ export function Message({ message }: { message: ChatMessage }) {
                   </a>
                 );
               })}
+            </div>
+          ) : null}
+
+          {message.confirm ? (
+            <div className="mt-3 rounded-xl border border-orange/30 bg-orange/[0.06] p-3">
+              <p className="text-[13px] font-semibold text-ink">{message.confirm.question}</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {message.confirm.options.map((opt) => (
+                  <button
+                    key={opt}
+                    type="button"
+                    disabled={message.streaming}
+                    onClick={() => onConfirmSelect(opt)}
+                    className="rounded-full border border-line bg-surface px-3 py-1.5 text-[13px] font-medium text-ink-2 transition-colors hover:border-ink hover:text-ink disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    {opt}
+                  </button>
+                ))}
+              </div>
             </div>
           ) : null}
 

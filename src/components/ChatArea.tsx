@@ -15,6 +15,7 @@ interface ChatAreaProps {
   draft: string;
   onDraftChange: (text: string) => void;
   onSend: (text: string, attachments: Attachment[]) => void;
+  onConfirmSelect: (option: string) => void;
   authenticated: boolean;
   onRequestLogin: () => void;
 }
@@ -33,6 +34,7 @@ export default function ChatArea({
   draft,
   onDraftChange,
   onSend,
+  onConfirmSelect,
   authenticated,
   onRequestLogin,
 }: ChatAreaProps) {
@@ -129,7 +131,7 @@ export default function ChatArea({
         ) : (
           <div className="mx-auto flex max-w-3xl flex-col gap-5">
             {messages.map((m) => (
-              <Message key={m.id} message={m} />
+              <Message key={m.id} message={m} onConfirmSelect={onConfirmSelect} />
             ))}
           </div>
         )}

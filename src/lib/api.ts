@@ -1,5 +1,5 @@
 import axios from 'axios';
-import type { MediaBlock, ModelOption, Session, Skill, UserInfo } from '../types';
+import type { ConfirmPrompt, MediaBlock, ModelOption, Session, Skill, UserInfo } from '../types';
 import { emojiFor } from '../data/skills';
 
 const API_BASE =
@@ -210,6 +210,7 @@ export function absolutizeMarkdownLinks(text: string): string {
 export interface ChatStreamHandlers {
   onText: (text: string) => void;
   onMedia: (block: MediaBlock) => void;
+  onConfirm?: (prompt: ConfirmPrompt) => void;
   onDone: (payload: { content?: string; session_id?: string }) => void;
   onError: (message: string) => void;
 }
@@ -238,8 +239,16 @@ function parseSseEvent(
   }
   if (typeof data !== 'object' || data === null) return;
 
-  // Named events (video_task / plan / step_done / confirm) are orchestration
-  // metadata; the basic chat only needs the bare data events below.
+  // Named events. Only `confirm` surfaces in the UI as tappable option cards;
+  // the rest (video_task / plan / step_done) are orchestration metadata.
+  if (eventName === 'confirm') {
+    const c = data as Record<string, unknown>;
+    handlers.onConfirm?.({
+      question: String(c.question ?? ''),
+      options: Array.isArray(c.options) ? c.options.map(String) : [],
+    });
+    return;
+  }
   if (eventName) return;
 
   const obj = data as Record<string, unknown>;

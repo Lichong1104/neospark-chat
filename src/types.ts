@@ -16,6 +16,12 @@ export interface MediaBlock {
   filename?: string;
 }
 
+/** A confirmation the Skill asks for (e.g. image aspect ratio, a parameter choice). */
+export interface ConfirmPrompt {
+  question: string;
+  options: string[];
+}
+
 export interface Attachment {
   id: string;
   uploadId: string;
@@ -30,6 +36,8 @@ export interface Message {
   content: string;
   /** Media produced by the Skill (streamed live), rendered under the text. */
   media?: MediaBlock[];
+  /** A confirmation the Skill is waiting on, rendered as tappable option cards. */
+  confirm?: ConfirmPrompt;
   /** True while the message is being streamed in. */
   streaming?: boolean;
   createdAt: number;

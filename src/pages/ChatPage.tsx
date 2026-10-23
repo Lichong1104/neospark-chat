@@ -194,6 +194,9 @@ export default function ChatPage() {
             onError: (msg) => {
               if (!acc) acc = `Error: ${msg}`;
             },
+            onConfirm: (prompt) => {
+              patch({ confirm: prompt });
+            },
           },
           controller.signal,
         );
@@ -237,6 +240,13 @@ export default function ChatPage() {
     return parts.join(' · ');
   }, [selectedSkills, model, models]);
 
+  const handleConfirmSelect = useCallback(
+    (option: string) => {
+      void sendMessage(option);
+    },
+    [sendMessage],
+  );
+
   const activeTitle = activeId ? sessions.find((s) => s.id === activeId)?.title ?? '' : '';
 
   return (
@@ -263,6 +273,7 @@ export default function ChatPage() {
         draft={draft}
         onDraftChange={setDraft}
         onSend={(t, a) => void sendMessage(t, a)}
+        onConfirmSelect={handleConfirmSelect}
         authenticated={!!user}
         onRequestLogin={openLogin}
       />
