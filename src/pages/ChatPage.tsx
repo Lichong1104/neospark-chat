@@ -294,7 +294,7 @@ export default function ChatPage() {
         activeId={activeId}
         loadingSessions={loadingSessions}
         onSelectSession={(id) => void selectSession(id)}
-        onDeleteSession={(id) => void handleDeleteSession(id)}
+        onDeleteSession={(id) => handleDeleteSession(id)}
         onPinSession={(id, pinned) => void handlePinSession(id, pinned)}
         onNewChat={newChat}
         view={view}

@@ -10,7 +10,7 @@ interface SidebarProps {
   activeId: string | null;
   loadingSessions: boolean;
   onSelectSession: (id: string) => void;
-  onDeleteSession: (id: string) => void;
+  onDeleteSession: (id: string) => void | Promise<void>;
   onPinSession: (id: string, pinned: boolean) => void;
   onNewChat: () => void;
   view: 'chat' | 'pricing' | 'balance' | 'subscription';
@@ -55,6 +55,7 @@ export default function Sidebar({
   const { user, isLoading, openLogin, signOut } = useAuth();
   const [groupCollapsed, setGroupCollapsed] = useState<Set<string>>(new Set());
   const [pendingDelete, setPendingDelete] = useState<{ id: string; title: string } | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [signOutConfirm, setSignOutConfirm] = useState(false);
   const [billing, setBilling] = useState<BillingState | null>(null);
   const [balance, setBalance] = useState<BalanceInfo | null>(null);
@@ -101,8 +102,10 @@ export default function Sidebar({
 
   const confirmDelete = () => {
     if (pendingDelete) {
-      onDeleteSession(pendingDelete.id);
+      const id = pendingDelete.id;
+      setDeletingId(id);
       setPendingDelete(null);
+      Promise.resolve(onDeleteSession(id)).finally(() => setDeletingId(null));
     }
   };
 
@@ -251,6 +254,7 @@ export default function Sidebar({
                                   className={cn(
                                     'group flex w-full animate-fade-up items-center gap-0.5 rounded-xl px-1.5 py-1.5 transition-colors',
                                     s.id === activeId ? 'bg-line-soft' : 'hover:bg-paper',
+                                    deletingId === s.id && 'opacity-50',
                                   )}
                                 >
                                   <button
@@ -284,11 +288,16 @@ export default function Sidebar({
                                   <button
                                     type="button"
                                     onClick={() => setPendingDelete({ id: s.id, title: s.title || 'New chat' })}
+                                    disabled={deletingId === s.id}
                                     title="Delete conversation"
                                     aria-label="Delete conversation"
-                                    className="flex-none rounded-md p-1.5 text-muted-2 opacity-0 transition-all hover:bg-line-soft hover:text-ink focus-visible:opacity-100 group-hover:opacity-100"
+                                    className="flex-none rounded-md p-1.5 text-muted-2 opacity-0 transition-all hover:bg-line-soft hover:text-ink focus-visible:opacity-100 group-hover:opacity-100 disabled:opacity-100"
                                   >
-                                    <Trash2 className="h-3.5 w-3.5" />
+                                    {deletingId === s.id ? (
+                                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                    ) : (
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                    )}
                                   </button>
                                 </div>
                               </li>
