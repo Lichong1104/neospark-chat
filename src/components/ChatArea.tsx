@@ -33,6 +33,10 @@ const SUGGESTIONS = [
   'Write a Xiaohongshu-style promo post',
 ];
 
+type SlashItem =
+  | { kind: 'skill'; id: string; name: string; description: string; emoji: string; active: boolean }
+  | { kind: 'attachment'; id: string; name: string };
+
 export default function ChatArea({
   title,
   contextLabel,
@@ -118,18 +122,37 @@ export default function ChatArea({
 
   useEffect(() => {
     if (!slashOpen) return;
-    const el = slashRef.current?.querySelector(`[data-skill-index="${slashIndex}"]`);
+    const el = slashRef.current?.querySelector(`[data-item-index="${slashIndex}"]`);
     el?.scrollIntoView({ block: 'nearest' });
   }, [slashIndex, slashOpen]);
 
   const modelLabel = model ? models.find((m) => m.id === model)?.label ?? model : 'Model';
 
-  const filteredSkills = useMemo(() => {
+  const filteredItems = useMemo<SlashItem[]>(() => {
     const q = slashQuery.trim().toLowerCase();
-    return skills.filter((s) => !q || s.name.toLowerCase().includes(q) || s.id.toLowerCase().includes(q));
-  }, [skills, slashQuery]);
+    const skillItems: SlashItem[] = skills
+      .filter((s) => !q || s.name.toLowerCase().includes(q) || s.id.toLowerCase().includes(q))
+      .map((s) => ({
+        kind: 'skill' as const,
+        id: s.id,
+        name: s.name,
+        description: s.description,
+        emoji: s.emoji ?? '⚙️',
+        active: selectedSkills.includes(s.id),
+      }));
+    // The "+ Skill" picker only lists skills; typing "@" also lists the files
+    // the reader has attached, so a sentence can point at a specific one.
+    if (mentionMode === 'select') return skillItems;
+    const attachmentItems: SlashItem[] = attachments
+      .filter((a) => !q || a.name.toLowerCase().includes(q))
+      .map((a) => ({ kind: 'attachment' as const, id: a.id, name: a.name }));
+    return [...attachmentItems, ...skillItems];
+  }, [skills, selectedSkills, attachments, slashQuery, mentionMode]);
 
-  const insertMention = (skill: Skill) => {
+  // Insert an inline @chip for a skill or an attachment at the caret, replacing
+  // the "@query" the reader typed. The chip's text is what `el.innerText`
+  // carries, so it ends up in the message the agent reads.
+  const insertChip = (label: string) => {
     const el = editorRef.current;
     if (!el) return;
     const sel = window.getSelection();
@@ -149,7 +172,7 @@ export default function ChatArea({
     const chip = document.createElement('span');
     chip.contentEditable = 'false';
     chip.className = 'mention-chip';
-    chip.textContent = `@${skill.name}`;
+    chip.textContent = `@${label}`;
     const space = document.createTextNode(' ');
     range.insertNode(space);
     range.insertNode(chip);
@@ -159,16 +182,22 @@ export default function ChatArea({
     sel.addRange(range);
 
     onDraftChange(el.innerText || '');
-    // Mentioning a skill also selects it so it joins the run.
-    if (!selectedSkills.includes(skill.id)) onToggleSkill(skill.id);
   };
 
-  const closeSlash = (skillId?: string) => {
-    if (skillId) {
-      const skill = skills.find((s) => s.id === skillId);
-      if (skill) {
-        if (mentionMode === 'mention') insertMention(skill);
-        else onToggleSkill(skillId);
+  const chooseItem = (item?: SlashItem) => {
+    if (item) {
+      if (item.kind === 'skill') {
+        if (mentionMode === 'mention') {
+          // Mentioning a skill inserts it inline and also selects it so it joins the run.
+          insertChip(item.name);
+          if (!selectedSkills.includes(item.id)) onToggleSkill(item.id);
+        } else {
+          onToggleSkill(item.id);
+        }
+      } else {
+        // Referencing an attachment inserts @filename; the file is already in the
+        // send list, and the message carries its upload_id/url for the agent.
+        insertChip(item.name);
       }
     }
     setSlashOpen(false);
@@ -241,12 +270,12 @@ export default function ChatArea({
     if (slashOpen) {
       if (e.key === 'Escape') {
         e.preventDefault();
-        closeSlash();
+        chooseItem();
         return;
       }
       if (e.key === 'ArrowDown') {
         e.preventDefault();
-        setSlashIndex((i) => Math.min(i + 1, filteredSkills.length - 1));
+        setSlashIndex((i) => Math.min(i + 1, filteredItems.length - 1));
         return;
       }
       if (e.key === 'ArrowUp') {
@@ -256,8 +285,8 @@ export default function ChatArea({
       }
       if (e.key === 'Enter') {
         e.preventDefault();
-        const skill = filteredSkills[slashIndex];
-        if (skill) closeSlash(skill.id);
+        const item = filteredItems[slashIndex];
+        if (item) chooseItem(item);
         return;
       }
     }
@@ -443,7 +472,7 @@ export default function ChatArea({
             <div className="relative min-w-0 flex-1">
               {!draft && !streaming && (
                 <span className="pointer-events-none absolute left-2 top-1.5 text-[0.95rem] leading-relaxed text-muted-2">
-                  {authenticated ? 'Message NeoSpark… use @ to mention a skill' : 'Sign in to start chatting…'}
+                  {authenticated ? 'Message NeoSpark… use @ to mention a skill or file' : 'Sign in to start chatting…'}
                 </span>
               )}
               <div
@@ -478,39 +507,61 @@ export default function ChatArea({
               }}
             />
 
-            {/* Slash skill menu */}
+            {/* @ mention menu: skills (and, when typed "@", the attached files) */}
             {slashOpen && (
               <div ref={slashRef} className="absolute bottom-full left-0 right-0 z-30 mb-1 max-h-64 overflow-y-auto rounded-xl border border-line bg-surface p-1 shadow-panel">
                 <div className="flex items-center gap-2 px-2.5 py-2 text-[11px] font-bold uppercase tracking-[0.14em] text-muted-2">
                   <Search className="h-3.5 w-3.5" />
-                  Select a skill
+                  {mentionMode === 'select' ? 'Select a skill' : 'Mention a skill or file'}
                 </div>
-                {filteredSkills.length === 0 ? (
-                  <p className="px-2.5 py-2 text-[13px] text-muted-2">No skills match.</p>
+                {filteredItems.length === 0 ? (
+                  <p className="px-2.5 py-2 text-[13px] text-muted-2">Nothing matches.</p>
                 ) : (
-                  filteredSkills.map((skill, i) => {
-                    const active = selectedSkills.includes(skill.id);
+                  filteredItems.map((item, i) => {
                     const highlighted = i === slashIndex;
+
+                    if (item.kind === 'attachment') {
+                      return (
+                        <button
+                          key={`att-${item.id}`}
+                          type="button"
+                          data-item-index={i}
+                          onClick={() => chooseItem(item)}
+                          onMouseEnter={() => setSlashIndex(i)}
+                          className={cn(
+                            'flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors',
+                            highlighted ? 'bg-line-soft' : 'hover:bg-paper',
+                          )}
+                        >
+                          <FileText className="h-4 w-4 flex-none text-muted-2" />
+                          <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-ink-2">{item.name}</span>
+                          <span className="flex-none rounded-full bg-line-soft px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-muted-2">
+                            File
+                          </span>
+                        </button>
+                      );
+                    }
+
                     return (
                       <button
-                        key={skill.id}
+                        key={`skill-${item.id}`}
                         type="button"
-                        data-skill-index={i}
-                        onClick={() => closeSlash(skill.id)}
+                        data-item-index={i}
+                        onClick={() => chooseItem(item)}
                         onMouseEnter={() => setSlashIndex(i)}
                         className={cn(
                           'flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors',
-                          highlighted ? 'bg-line-soft' : active ? 'bg-paper' : 'hover:bg-paper',
+                          highlighted ? 'bg-line-soft' : item.active ? 'bg-paper' : 'hover:bg-paper',
                         )}
                       >
-                        <span className="text-[15px] leading-none">{skill.emoji}</span>
+                        <span className="text-[15px] leading-none">{item.emoji}</span>
                         <span className="min-w-0 flex-1">
-                          <span className={cn('block truncate text-[13px] font-semibold', active ? 'text-ink' : 'text-ink-2')}>
-                            {skill.name}
+                          <span className={cn('block truncate text-[13px] font-semibold', item.active ? 'text-ink' : 'text-ink-2')}>
+                            {item.name}
                           </span>
-                          <span className="block truncate text-[11px] text-muted-2">{skill.description}</span>
+                          <span className="block truncate text-[11px] text-muted-2">{item.description}</span>
                         </span>
-                        {active && <Check className="h-3.5 w-3.5 flex-none text-orange-deep" />}
+                        {item.active && <Check className="h-3.5 w-3.5 flex-none text-orange-deep" />}
                       </button>
                     );
                   })
@@ -520,7 +571,7 @@ export default function ChatArea({
           </div>
 
           <div className="mt-2 flex items-center justify-between text-[11px] text-muted-2">
-            <span>{authenticated ? 'Enter to send · @ to mention a skill' : 'Not signed in — sign in to send'}</span>
+            <span>{authenticated ? 'Enter to send · @ to mention a skill or file' : 'Not signed in — sign in to send'}</span>
             <span>{streaming ? 'Generating…' : contextLabel}</span>
           </div>
         </div>
