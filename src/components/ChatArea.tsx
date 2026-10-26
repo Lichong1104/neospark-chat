@@ -60,8 +60,10 @@ export default function ChatArea({
   const editorRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const modelRef = useRef<HTMLDivElement>(null);
+  const dragDepth = useRef(0);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [dragActive, setDragActive] = useState(false);
   const [modelOpen, setModelOpen] = useState(false);
   const [slashOpen, setSlashOpen] = useState(false);
   const [slashQuery, setSlashQuery] = useState('');
@@ -272,6 +274,37 @@ export default function ChatArea({
     setAttachments((prev) => prev.filter((a) => a.id !== id));
   };
 
+  // Drag-and-drop: dropping files anywhere on the chat uploads them through the
+  // same path as the paperclip button. A depth counter keeps the overlay from
+  // flickering as the pointer crosses child elements.
+  const hasFiles = (e: React.DragEvent) => Array.from(e.dataTransfer?.types ?? []).includes('Files');
+
+  const onDragEnter = (e: React.DragEvent) => {
+    if (!hasFiles(e)) return;
+    e.preventDefault();
+    dragDepth.current += 1;
+    setDragActive(true);
+  };
+
+  const onDragOver = (e: React.DragEvent) => {
+    if (!hasFiles(e)) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+  };
+
+  const onDragLeave = () => {
+    dragDepth.current = Math.max(0, dragDepth.current - 1);
+    if (dragDepth.current === 0) setDragActive(false);
+  };
+
+  const onDrop = (e: React.DragEvent) => {
+    if (!hasFiles(e)) return;
+    e.preventDefault();
+    dragDepth.current = 0;
+    setDragActive(false);
+    if (e.dataTransfer.files?.length) void handleFiles(e.dataTransfer.files);
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (slashOpen) {
       if (e.key === 'Escape') {
@@ -310,7 +343,20 @@ export default function ChatArea({
   };
 
   return (
-    <main className="flex h-full min-w-0 flex-1 flex-col">
+    <main
+      className="relative flex h-full min-w-0 flex-1 flex-col"
+      onDragEnter={onDragEnter}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+    >
+      {dragActive && (
+        <div className="pointer-events-none absolute inset-0 z-40 flex items-center justify-center bg-surface/80 backdrop-blur-sm">
+          <div className="rounded-2xl border-2 border-dashed border-orange-deep bg-surface px-6 py-4 text-sm font-semibold text-orange-deep shadow-panel">
+            Drop files to attach
+          </div>
+        </div>
+      )}
       {/* Header */}
       <header className="flex items-center gap-3 border-b border-line bg-surface/70 px-6 py-3 backdrop-blur">
         <div className="min-w-0 flex-1">
