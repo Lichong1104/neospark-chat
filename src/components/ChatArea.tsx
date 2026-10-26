@@ -69,18 +69,21 @@ export default function ChatArea({
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight });
   }, [messages]);
 
-  // Sync an externally-set draft (jump-in from the marketing site) into the editor.
+  // Keep the uncontrolled contentEditable in sync with the draft state.
+  // The marketing-site jump-in and the auto-send path set `draft` from outside
+  // the editor, so the DOM can still hold the old text after the state is
+  // cleared — which made the placeholder render on top of leftover text.
+  // Syncing whenever they differ (including clearing) fixes that.
   useEffect(() => {
     const el = editorRef.current;
-    if (el && draft && el.innerText !== draft) {
-      el.innerText = draft;
-      const sel = window.getSelection();
-      const range = document.createRange();
-      range.selectNodeContents(el);
-      range.collapse(false);
-      sel?.removeAllRanges();
-      sel?.addRange(range);
-    }
+    if (!el || el.innerText === draft) return;
+    el.innerText = draft;
+    const sel = window.getSelection();
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    range.collapse(false);
+    sel?.removeAllRanges();
+    sel?.addRange(range);
   }, [draft]);
 
   useEffect(() => {
