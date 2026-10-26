@@ -225,7 +225,7 @@ export async function uploadFile(file: File): Promise<UploadedFile> {
   formData.append('file', file);
   formData.append('file_type', detectFileType(file));
   const res = (await http.post('/storage/upload', formData)) as unknown as {
-    data?: { upload_id?: string; url?: string; filename?: string };
+    data?: { upload_id?: string; url?: string; filename?: string; original_name?: string };
   };
   return {
     uploadId: res?.data?.upload_id ?? '',
@@ -233,7 +233,8 @@ export async function uploadFile(file: File): Promise<UploadedFile> {
     // thumbnail (and the reference sent to the backend) points at the API origin
     // rather than the chat app's own origin.
     url: absolutizeUrl(res?.data?.url ?? ''),
-    filename: res?.data?.filename ?? file.name,
+    // Stored filenames are ASCII-safe; show the original name in the composer.
+    filename: res?.data?.original_name ?? res?.data?.filename ?? file.name,
   };
 }
 
