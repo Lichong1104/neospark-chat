@@ -35,7 +35,7 @@ const SUGGESTIONS = [
 
 type SlashItem =
   | { kind: 'skill'; id: string; name: string; description: string; emoji: string; active: boolean }
-  | { kind: 'attachment'; id: string; name: string };
+  | { kind: 'attachment'; id: string; name: string; url: string; mediaType: 'image' | 'video' | 'file' };
 
 export default function ChatArea({
   title,
@@ -145,14 +145,14 @@ export default function ChatArea({
     if (mentionMode === 'select') return skillItems;
     const attachmentItems: SlashItem[] = attachments
       .filter((a) => !q || a.name.toLowerCase().includes(q))
-      .map((a) => ({ kind: 'attachment' as const, id: a.id, name: a.name }));
+      .map((a) => ({ kind: 'attachment' as const, id: a.id, name: a.name, url: a.url, mediaType: a.type }));
     return [...attachmentItems, ...skillItems];
   }, [skills, selectedSkills, attachments, slashQuery, mentionMode]);
 
   // Insert an inline @chip for a skill or an attachment at the caret, replacing
   // the "@query" the reader typed. The chip's text is what `el.innerText`
   // carries, so it ends up in the message the agent reads.
-  const insertChip = (label: string) => {
+  const insertChip = (label: string, thumbUrl?: string) => {
     const el = editorRef.current;
     if (!el) return;
     const sel = window.getSelection();
@@ -172,7 +172,13 @@ export default function ChatArea({
     const chip = document.createElement('span');
     chip.contentEditable = 'false';
     chip.className = 'mention-chip';
-    chip.textContent = `@${label}`;
+    if (thumbUrl) {
+      const img = document.createElement('img');
+      img.src = thumbUrl;
+      img.alt = '';
+      chip.appendChild(img);
+    }
+    chip.appendChild(document.createTextNode(`@${label}`));
     const space = document.createTextNode(' ');
     range.insertNode(space);
     range.insertNode(chip);
@@ -195,9 +201,9 @@ export default function ChatArea({
           onToggleSkill(item.id);
         }
       } else {
-        // Referencing an attachment inserts @filename; the file is already in the
-        // send list, and the message carries its upload_id/url for the agent.
-        insertChip(item.name);
+        // Referencing an attachment inserts a thumbnail + @filename; the file is
+        // already in the send list, and the message carries its upload_id/url.
+        insertChip(item.name, item.mediaType === 'image' ? item.url : undefined);
       }
     }
     setSlashOpen(false);
@@ -533,7 +539,11 @@ export default function ChatArea({
                             highlighted ? 'bg-line-soft' : 'hover:bg-paper',
                           )}
                         >
-                          <FileText className="h-4 w-4 flex-none text-muted-2" />
+                          {item.mediaType === 'image' ? (
+                            <img src={item.url} alt="" className="h-7 w-7 flex-none rounded-md object-cover" />
+                          ) : (
+                            <FileText className="h-4 w-4 flex-none text-muted-2" />
+                          )}
                           <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-ink-2">{item.name}</span>
                           <span className="flex-none rounded-full bg-line-soft px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-muted-2">
                             File

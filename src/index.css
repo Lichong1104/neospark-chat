@@ -72,11 +72,22 @@ textarea:focus-visible,
 
 /* @SkillName mentions highlighted in the composer backdrop. */
 .mention-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
   background: rgba(255, 121, 62, 0.18);
   color: #d94f1e;
   border-radius: 6px;
   padding: 0 3px;
   font-weight: 600;
+  vertical-align: middle;
+}
+
+.mention-chip img {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  object-fit: cover;
 }
 
 /* ------------------------------------------------------------- eyebrow --
