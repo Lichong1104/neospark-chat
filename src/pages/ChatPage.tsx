@@ -39,16 +39,46 @@ export default function ChatPage() {
 
   const abortRef = useRef<AbortController | null>(null);
   const streamingRef = useRef(false);
+  /** Skill ids present in the last successful live fetch; null until it lands. */
+  const liveSkillIdsRef = useRef<Set<string> | null>(null);
 
   // Catalogue (anonymous). On failure keep the fallback snapshot.
-  useEffect(() => {
-    listSkills()
-      .then((s) => s.length && setSkills(s))
+  // A Skill deleted on the server must disappear from an open tab too, so the
+  // list is refetched on focus/visibility and the current selection is pruned.
+  const refreshSkills = useCallback(() => {
+    return listSkills()
+      .then((s) => {
+        if (!s.length) return;
+        const ids = new Set(s.map((x) => x.id));
+        liveSkillIdsRef.current = ids;
+        setSkills(s);
+        setSelectedSkills((prev) => {
+          const next = prev.filter((id) => ids.has(id));
+          return next.length === prev.length ? prev : next;
+        });
+      })
       .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    void refreshSkills();
     listModels()
       .then((m) => m.length && setModels(m))
       .catch(() => {});
-  }, []);
+  }, [refreshSkills]);
+
+  useEffect(() => {
+    const onFocus = () => void refreshSkills();
+    const onVisible = () => {
+      if (!document.hidden) void refreshSkills();
+    };
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [refreshSkills]);
 
   const refreshSessions = useCallback(() => {
     setLoadingSessions(true);
@@ -115,7 +145,8 @@ export default function ChatPage() {
       setActiveId(id);
       const s = sessions.find((x) => x.id === id);
       if (s) {
-        setSelectedSkills(s.skillIds);
+        const known = liveSkillIdsRef.current;
+        setSelectedSkills(known ? s.skillIds.filter((sid) => known.has(sid)) : s.skillIds);
         setModel(s.model ?? '');
       }
       setLoadingHistory(true);
@@ -165,11 +196,15 @@ export default function ChatPage() {
 
   const sendMessage = useCallback(
     async (text: string, attachments: Attachment[] = [], skillIdsOverride?: string[]) => {
-      const skillIds = skillIdsOverride ?? selectedSkills;
+      const requested = skillIdsOverride ?? selectedSkills;
+      // Drop ids the server no longer knows about (e.g. a Skill deleted after
+      // this tab loaded), and say so instead of sending a doomed request.
+      const known = liveSkillIdsRef.current;
+      const skillIds = known ? requested.filter((id) => known.has(id)) : requested;
       const content = attachments.length > 0 ? buildMessageWithAttachments(text, attachments) : text.trim();
       if (!content || streamingRef.current) return;
       if (skillIds.length === 0) {
-        toast('Select a skill first');
+        toast(requested.length > 0 ? 'The selected skill no longer exists' : 'Select a skill first');
         return;
       }
 
@@ -248,8 +283,9 @@ export default function ChatPage() {
     setPendingAuto(null);
     setSelectedSkills((prev) => (prev.includes(skill) ? prev : [...prev, skill]));
     window.history.replaceState(null, '', window.location.pathname);
-    void sendMessage(message, [], [skill]);
-  }, [user, pendingAuto, sendMessage]);
+    // Refresh first so a Skill deleted since the link was copied is caught here.
+    void refreshSkills().then(() => sendMessage(message, [], [skill]));
+  }, [user, pendingAuto, sendMessage, refreshSkills]);
 
   const contextLabel = useMemo(() => {
     const parts: string[] = [];
