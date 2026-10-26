@@ -229,7 +229,10 @@ export async function uploadFile(file: File): Promise<UploadedFile> {
   };
   return {
     uploadId: res?.data?.upload_id ?? '',
-    url: res?.data?.url ?? '',
+    // The API returns a relative /uploads/... path; absolutize it so the composer
+    // thumbnail (and the reference sent to the backend) points at the API origin
+    // rather than the chat app's own origin.
+    url: absolutizeUrl(res?.data?.url ?? ''),
     filename: res?.data?.filename ?? file.name,
   };
 }
