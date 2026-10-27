@@ -61,6 +61,8 @@ export default function ChatArea({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const modelRef = useRef<HTMLDivElement>(null);
   const dragDepth = useRef(0);
+  /** 输入 @ 打开菜单那一刻的光标位置，供插入 chip 时兜底使用。 */
+  const savedRangeRef = useRef<Range | null>(null);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [uploading, setUploading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
@@ -112,15 +114,15 @@ export default function ChatArea({
     if (!slashOpen) return;
     const onDown = (e: MouseEvent) => {
       if (slashRef.current && !slashRef.current.contains(e.target as Node)) {
+        // 只关菜单，绝不改写草稿：以前这里会把「最后一个 @ 之后」全部截掉，
+        // 粘贴长文本后点到菜单外就会丢掉半段内容。
         setSlashOpen(false);
         setSlashQuery('');
-        const idx = draft.lastIndexOf('@');
-        if (idx >= 0) onDraftChange(draft.slice(0, idx).trimEnd());
       }
     };
     document.addEventListener('mousedown', onDown);
     return () => document.removeEventListener('mousedown', onDown);
-  }, [slashOpen, draft, onDraftChange]);
+  }, [slashOpen]);
 
   useEffect(() => {
     if (!slashOpen) return;
@@ -157,15 +159,38 @@ export default function ChatArea({
   const insertChip = (label: string, thumbUrl?: string) => {
     const el = editorRef.current;
     if (!el) return;
+
+    // 点击菜单按钮会让编辑器失焦、选区被重置，所以优先用「输入 @ 时」记下的
+    // 光标位置；只有实时选区确实停在一个含 @ 的文本节点上时才用它。
     const sel = window.getSelection();
-    if (!sel || sel.rangeCount === 0) return;
-    const range = sel.getRangeAt(0);
-    const node = range.startContainer;
-    if (!(node instanceof Text)) return;
+    let range: Range | null = null;
+    if (sel && sel.rangeCount > 0) {
+      const live = sel.getRangeAt(0);
+      if (live.startContainer instanceof Text) {
+        const liveBefore = live.startContainer.textContent || '';
+        if (liveBefore.lastIndexOf('@', live.startOffset - 1) >= 0) range = live;
+      }
+    }
+    const saved = savedRangeRef.current;
+    if (!range && saved && saved.startContainer instanceof Text) {
+      range = saved.cloneRange();
+      // saved 记的是刚敲下 @ 时的位置；把随后输入的查询文字一并纳入删除范围。
+      const savedNode = range.startContainer as Text;
+      const queryLength = slashQuery.length;
+      if (queryLength > 0) {
+        range.setEnd(savedNode, Math.min(savedNode.length, range.startOffset + queryLength));
+      }
+    }
+    if (!range) return;
+
+    const node = range.startContainer as Text;
     const before = node.textContent || '';
     const offset = range.startOffset;
     const atIdx = before.lastIndexOf('@', offset - 1);
     if (atIdx < 0) return;
+    // 只允许删除一段短查询（@ + 文件名/技能名片段）。超过这个长度说明选区已经
+    // 跑偏了，宁可放弃插入，也不能误删正文。
+    if (offset - atIdx > 96) return;
 
     range.setStart(node, atIdx);
     range.setEnd(node, offset);
@@ -186,8 +211,11 @@ export default function ChatArea({
     range.insertNode(chip);
     range.setStartAfter(space);
     range.collapse(true);
-    sel.removeAllRanges();
-    sel.addRange(range);
+    if (sel) {
+      sel.removeAllRanges();
+      sel.addRange(range);
+    }
+    savedRangeRef.current = null;
 
     onDraftChange(el.innerText || '');
   };
@@ -224,6 +252,7 @@ export default function ChatArea({
       const before = (node.textContent || '').slice(0, range.startOffset);
       const atIdx = before.lastIndexOf('@');
       if (atIdx >= 0) {
+        savedRangeRef.current = range.cloneRange();
         setSlashQuery(before.slice(atIdx + 1));
         setSlashIndex(0);
         setSlashOpen(true);
@@ -578,6 +607,7 @@ export default function ChatArea({
                           key={`att-${item.id}`}
                           type="button"
                           data-item-index={i}
+                          onMouseDown={(event) => event.preventDefault()}
                           onClick={() => chooseItem(item)}
                           onMouseEnter={() => setSlashIndex(i)}
                           className={cn(
@@ -603,6 +633,7 @@ export default function ChatArea({
                         key={`skill-${item.id}`}
                         type="button"
                         data-item-index={i}
+                        onMouseDown={(event) => event.preventDefault()}
                         onClick={() => chooseItem(item)}
                         onMouseEnter={() => setSlashIndex(i)}
                         className={cn(
