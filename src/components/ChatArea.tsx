@@ -64,7 +64,7 @@ export default function ChatArea({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const modelRef = useRef<HTMLDivElement>(null);
   const dragDepth = useRef(0);
-  /** 输入 @ 打开菜单那一刻的光标位置，供插入 chip 时兜底使用。 */
+  /** Caret position captured when the @ menu opens, used when inserting a chip. */
   const savedRangeRef = useRef<Range | null>(null);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [uploading, setUploading] = useState(false);
@@ -130,8 +130,9 @@ export default function ChatArea({
     if (!slashOpen) return;
     const onDown = (e: MouseEvent) => {
       if (slashRef.current && !slashRef.current.contains(e.target as Node)) {
-        // 只关菜单，绝不改写草稿：以前这里会把「最后一个 @ 之后」全部截掉，
-        // 粘贴长文本后点到菜单外就会丢掉半段内容。
+        // Close the menu without rewriting the draft: this used to truncate
+        // everything after the last "@", so clicking outside after pasting a
+        // long text dropped half of it.
         setSlashOpen(false);
         setSlashQuery('');
       }
@@ -176,8 +177,9 @@ export default function ChatArea({
     const el = editorRef.current;
     if (!el) return;
 
-    // 点击菜单按钮会让编辑器失焦、选区被重置，所以优先用「输入 @ 时」记下的
-    // 光标位置；只有实时选区确实停在一个含 @ 的文本节点上时才用它。
+    // Clicking a menu button blurs the editor and resets the selection, so
+    // prefer the caret position captured when "@" was typed; use the live
+    // selection only when it actually sits in a text node containing "@".
     const sel = window.getSelection();
     let range: Range | null = null;
     if (sel && sel.rangeCount > 0) {
@@ -190,7 +192,8 @@ export default function ChatArea({
     const saved = savedRangeRef.current;
     if (!range && saved && saved.startContainer instanceof Text) {
       range = saved.cloneRange();
-      // saved 记的是刚敲下 @ 时的位置；把随后输入的查询文字一并纳入删除范围。
+      // `saved` is the position at the moment "@" was typed; include the query
+      // text typed since then in the deletion range.
       const savedNode = range.startContainer as Text;
       const queryLength = slashQuery.length;
       if (queryLength > 0) {
@@ -204,8 +207,9 @@ export default function ChatArea({
     const offset = range.startOffset;
     const atIdx = before.lastIndexOf('@', offset - 1);
     if (atIdx < 0) return;
-    // 只允许删除一段短查询（@ + 文件名/技能名片段）。超过这个长度说明选区已经
-    // 跑偏了，宁可放弃插入，也不能误删正文。
+    // Only delete a short query ("@" plus a filename or Skill-name fragment).
+    // A longer span means the selection has drifted; skip the insert rather
+    // than delete body text.
     if (offset - atIdx > 96) return;
 
     range.setStart(node, atIdx);
