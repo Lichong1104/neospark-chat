@@ -1,4 +1,5 @@
-import axios from 'axios';
+import axios, { AxiosHeaders } from 'axios';
+import type { InternalAxiosRequestConfig } from 'axios';
 import type { BalanceInfo, BillingState, ConfirmPrompt, MediaBlock, ModelOption, PlanStep, PointTransaction, Session, Skill, UserInfo } from '../types';
 import { emojiFor } from '../data/skills';
 
@@ -36,7 +37,28 @@ http.interceptors.request.use((config) => {
 // Unwrap the axios envelope so callers get the payload directly.
 http.interceptors.response.use(
   (res) => res.data,
-  (err) => Promise.reject(err),
+  async (err) => {
+    // The token in localStorage outlives the backend session it was minted for.
+    // When the backend sees a Bearer header it validates that instead of the
+    // session cookie, so a revoked/expired token 401s every call — including the
+    // fresh cookie set by the Google OAuth round trip, which makes the app bounce
+    // straight back to "please log in". Drop the dead token and replay once with
+    // cookies only.
+    const config = err?.config as (InternalAxiosRequestConfig & { __retriedWithoutToken?: boolean }) | undefined;
+    const status = err?.response?.status as number | undefined;
+    if (status === 401 && config && !config.__retriedWithoutToken && config.headers?.Authorization) {
+      clearToken();
+      const headers = AxiosHeaders.from(config.headers);
+      headers.delete('Authorization');
+      const retryConfig = {
+        ...config,
+        headers,
+        __retriedWithoutToken: true,
+      } as InternalAxiosRequestConfig & { __retriedWithoutToken?: boolean };
+      return http.request(retryConfig);
+    }
+    return Promise.reject(err);
+  },
 );
 
 /* --------------------------------------------------------------- auth -- */
@@ -55,10 +77,14 @@ export async function emailLogin(email: string, code: string): Promise<void> {
   await mintAccessToken();
 }
 
-export async function getMe(): Promise<UserInfo> {
+async function fetchMe(): Promise<UserInfo> {
   const res = (await http.get('/auth/me')) as { data?: UserInfo };
   if (!res?.data) throw new Error('Unexpected /auth/me response');
   return res.data;
+}
+
+export async function getMe(): Promise<UserInfo> {
+  return fetchMe();
 }
 
 export async function mintAccessToken(): Promise<string | null> {
