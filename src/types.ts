@@ -103,6 +103,7 @@ export interface UserInfo {
   avatar_url: string | null;
   balance: number;
   is_admin: boolean;
+  created_at?: string | null;
 }
 
 /** Stripe subscription state from GET /billing/state. */

@@ -87,6 +87,24 @@ export async function getMe(): Promise<UserInfo> {
   return fetchMe();
 }
 
+/** Update the signed-in user's display name / avatar. */
+export async function updateProfile(body: {
+  name?: string | null;
+  avatar_url?: string | null;
+}): Promise<UserInfo | null> {
+  const res = (await http.patch('/auth/me', body)) as { data?: UserInfo };
+  return res?.data ?? null;
+}
+
+/** Upload an image to storage and return its absolute URL (used for avatars). */
+export async function uploadAvatar(file: File): Promise<string> {
+  const form = new FormData();
+  form.append('file', file);
+  form.append('file_type', 'image');
+  const res = (await http.post('/storage/upload', form)) as unknown as { data?: { url?: string } };
+  return absolutizeUrl(res?.data?.url ?? '');
+}
+
 export async function mintAccessToken(): Promise<string | null> {
   try {
     const res = (await http.post('/auth/access-token')) as { access_token?: string };
@@ -176,8 +194,10 @@ export async function deleteSkill(skillId: string): Promise<void> {
 
 /* -------------------------------------------------------------- api keys -- */
 
-export async function listApiKeys(): Promise<ApiKeyListData> {
-  const res = (await http.get('/api-keys')) as { data?: ApiKeyListData };
+export async function listApiKeys(includeInactive = false): Promise<ApiKeyListData> {
+  const res = (await http.get('/api-keys', { params: { include_inactive: includeInactive } })) as {
+    data?: ApiKeyListData;
+  };
   return res?.data ?? { items: [], total: 0, active_count: 0, expired_count: 0 };
 }
 

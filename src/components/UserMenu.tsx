@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import type { ComponentType } from 'react';
 import { ChevronDown, ChevronUp, KeyRound, LogOut, User as UserIcon, Wrench } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
-import type { View } from '../types';
+import { getBalance, getBillingState } from '../lib/api';
+import type { BalanceInfo, BillingState, View } from '../types';
 import { cn } from '../lib/utils';
 
 interface UserMenuProps {
@@ -46,9 +47,28 @@ function MenuItem({
 export default function UserMenu({ collapsed, onNavigate }: UserMenuProps) {
   const { user, isLoading, openLogin, signOut } = useAuth();
   const [open, setOpen] = useState(false);
+  const [balance, setBalance] = useState<BalanceInfo | null>(null);
+  const [billing, setBilling] = useState<BillingState | null>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
 
   const close = () => setOpen(false);
+
+  // Credits + subscription state are shown right under the name, so keep them
+  // fresh whenever the account changes.
+  useEffect(() => {
+    if (!user) {
+      setBalance(null);
+      setBilling(null);
+      return;
+    }
+    getBalance().then(setBalance).catch(() => {});
+    getBillingState().then(setBilling).catch(() => {});
+  }, [user]);
+
+  const plan = billing?.subscription;
+  const planLabel = plan?.planKey ?? 'Free';
+  const credits = balance ? balance.available_points : user?.balance ?? 0;
+  const subscriptionState = plan ? (plan.cancelAtPeriodEnd ? 'Cancelling' : plan.status) : 'No subscription';
 
   useEffect(() => {
     if (!open) return;
@@ -97,7 +117,11 @@ export default function UserMenu({ collapsed, onNavigate }: UserMenuProps) {
             <>
               <div className="min-w-0 flex-1">
                 <div className="truncate text-[13px] font-semibold leading-tight">{user.name || user.email}</div>
-                <div className="truncate text-[11px] text-muted-2">{user.email}</div>
+                <div className="truncate text-[11px] text-muted-2" title={`${planLabel} · ${subscriptionState}`}>
+                  <span className="capitalize">{planLabel}</span>
+                  {' · '}
+                  {credits.toLocaleString('en-US')} credits
+                </div>
               </div>
               {open ? (
                 <ChevronDown className="h-4 w-4 flex-none text-muted-2" />

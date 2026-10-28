@@ -1,22 +1,35 @@
-import { useEffect, useState } from 'react';
-import type { ReactNode } from 'react';
-import { ArrowLeft, Coins, CreditCard, ExternalLink, KeyRound, LogOut, Shield, Snowflake, Tag, User as UserIcon } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { ArrowLeft, Camera, Check, Coins, Loader2, LogOut, Pencil, Snowflake, Tag, X } from 'lucide-react';
+import { toast } from 'sonner';
 import { useAuth } from '../auth/AuthContext';
-import { getBalance, getBillingState } from '../lib/api';
-import type { BalanceInfo, BillingState, View } from '../types';
+import { getBalance, getBillingState, updateProfile, uploadAvatar } from '../lib/api';
+import type { BalanceInfo, BillingState } from '../types';
 
-const PLATFORM_BASE = 'https://platform.useneospark.com';
+function fmtDate(value: string | null | undefined): string {
+  if (!value) return '—';
+  const d = new Date(value);
+  return Number.isNaN(d.getTime())
+    ? value
+    : d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+}
 
-export default function UserPage({
-  onBack,
-  onNavigate,
-}: {
-  onBack: () => void;
-  onNavigate: (view: View) => void;
-}) {
-  const { user, openLogin, signOut } = useAuth();
+function planStatus(billing: BillingState | null): string {
+  const sub = billing?.subscription;
+  if (!sub) return 'No subscription';
+  if (sub.cancelAtPeriodEnd) return `Cancels on ${fmtDate(sub.currentPeriodEnd)}`;
+  return sub.status ? `${sub.status[0].toUpperCase()}${sub.status.slice(1)}` : 'Active';
+}
+
+export default function UserPage({ onBack }: { onBack: () => void }) {
+  const { user, openLogin, signOut, refresh } = useAuth();
   const [balance, setBalance] = useState<BalanceInfo | null>(null);
   const [billing, setBilling] = useState<BillingState | null>(null);
+
+  const [editingName, setEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState('');
+  const [savingName, setSavingName] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -24,21 +37,53 @@ export default function UserPage({
     getBillingState().then(setBilling).catch(() => {});
   }, [user]);
 
-  const planLabel = billing?.subscription?.planKey;
+  const planLabel = billing?.subscription?.planKey ?? 'Free';
 
-  const linkRow = (label: string, hint: string, icon: ReactNode, onClick: () => void) => (
-    <button
-      type="button"
-      onClick={onClick}
-      className="flex w-full items-center gap-3 border-b border-line-soft px-4 py-3 text-left transition-colors last:border-b-0 hover:bg-paper"
-    >
-      <span className="flex h-8 w-8 flex-none items-center justify-center rounded-lg bg-line-soft text-ink">{icon}</span>
-      <span className="min-w-0 flex-1">
-        <span className="block text-[13px] font-semibold">{label}</span>
-        <span className="block text-[11px] text-muted-2">{hint}</span>
-      </span>
-      <span className="text-muted-2">›</span>
-    </button>
+  const startEditName = () => {
+    setNameDraft(user?.name ?? '');
+    setEditingName(true);
+  };
+
+  const saveName = async () => {
+    const next = nameDraft.trim();
+    if (!next) {
+      toast.error('Name cannot be empty');
+      return;
+    }
+    setSavingName(true);
+    try {
+      await updateProfile({ name: next });
+      await refresh();
+      toast.success('Name updated');
+      setEditingName(false);
+    } catch {
+      toast.error('Could not update your name');
+    } finally {
+      setSavingName(false);
+    }
+  };
+
+  const changeAvatar = async (file: File | undefined) => {
+    if (!file) return;
+    setUploadingAvatar(true);
+    try {
+      const url = await uploadAvatar(file);
+      if (!url) throw new Error('no url');
+      await updateProfile({ avatar_url: url });
+      await refresh();
+      toast.success('Avatar updated');
+    } catch {
+      toast.error('Could not update your avatar');
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
+
+  const detail = (label: string, value: string) => (
+    <div className="flex items-center justify-between gap-4 border-b border-line-soft px-4 py-3 last:border-b-0">
+      <span className="flex-none text-[12px] font-bold uppercase tracking-[0.1em] text-muted-2">{label}</span>
+      <span className="min-w-0 truncate text-right text-[13px] font-semibold">{value}</span>
+    </div>
   );
 
   return (
@@ -72,23 +117,94 @@ export default function UserPage({
 
             {/* Profile */}
             <div className="mt-6 flex items-center gap-4 rounded-2xl border border-line bg-surface p-5 shadow-card">
-              {user.avatar_url ? (
-                <img src={user.avatar_url} alt="" referrerPolicy="no-referrer" className="h-14 w-14 flex-none rounded-full object-cover" />
-              ) : (
-                <div className="flex h-14 w-14 flex-none items-center justify-center rounded-full bg-orange/15 text-xl font-bold text-orange-deep">
-                  {(user.name || user.email)[0]?.toUpperCase()}
-                </div>
-              )}
+              <div className="relative flex-none">
+                {user.avatar_url ? (
+                  <img src={user.avatar_url} alt="" referrerPolicy="no-referrer" className="h-16 w-16 rounded-full object-cover" />
+                ) : (
+                  <div className="flex h-16 w-16 items-center justify-center rounded-full bg-orange/15 text-xl font-bold text-orange-deep">
+                    {(user.name || user.email)[0]?.toUpperCase()}
+                  </div>
+                )}
+                <button
+                  type="button"
+                  onClick={() => avatarInputRef.current?.click()}
+                  disabled={uploadingAvatar}
+                  title="Change avatar"
+                  className="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full border border-line bg-surface text-ink shadow-card transition-colors hover:bg-paper disabled:opacity-60"
+                >
+                  {uploadingAvatar ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Camera className="h-3.5 w-3.5" />}
+                </button>
+                <input
+                  ref={avatarInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    event.target.value = '';
+                    void changeAvatar(file);
+                  }}
+                />
+              </div>
+
               <div className="min-w-0 flex-1">
-                <div className="truncate text-[16px] font-bold tracking-tight">{user.name || 'NeoSpark user'}</div>
+                {editingName ? (
+                  <div className="flex items-center gap-2">
+                    <input
+                      value={nameDraft}
+                      onChange={(event) => setNameDraft(event.target.value)}
+                      autoFocus
+                      maxLength={255}
+                      className="min-w-0 flex-1 rounded-lg border border-line bg-surface px-2.5 py-1.5 text-[14px] font-bold outline-none focus:border-ink"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => void saveName()}
+                      disabled={savingName}
+                      className="flex h-8 w-8 flex-none items-center justify-center rounded-full bg-ink text-surface disabled:opacity-60"
+                      title="Save"
+                    >
+                      {savingName ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-4 w-4" />}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditingName(false)}
+                      className="flex h-8 w-8 flex-none items-center justify-center rounded-full border border-line text-muted-2 hover:text-ink"
+                      title="Cancel"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <span className="min-w-0 truncate text-[16px] font-bold tracking-tight">{user.name || 'NeoSpark user'}</span>
+                    <button
+                      type="button"
+                      onClick={startEditName}
+                      title="Edit name"
+                      className="flex h-7 w-7 flex-none items-center justify-center rounded-full text-muted-2 transition-colors hover:bg-paper hover:text-ink"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                )}
                 <div className="truncate text-[13px] text-muted-2">{user.email}</div>
                 <div className="mt-1 flex items-center gap-1.5 text-[11px] text-muted-2">
-                  <span className="rounded-full bg-line-soft px-2 py-0.5 font-bold uppercase tracking-wide">
-                    {planLabel ? planLabel : 'Free'}
-                  </span>
+                  <span className="rounded-full bg-line-soft px-2 py-0.5 font-bold uppercase tracking-wide">{planLabel}</span>
                   <span>User #{user.id}</span>
                 </div>
               </div>
+            </div>
+
+            {/* Account details */}
+            <h2 className="mt-8 text-[1.1rem] font-bold tracking-[-0.02em]">Account details</h2>
+            <div className="mt-3 overflow-hidden rounded-2xl border border-line bg-surface shadow-card">
+              {detail('Email', user.email)}
+              {detail('Registered', fmtDate(user.created_at))}
+              {detail('Plan', planLabel)}
+              {detail('Subscription', planStatus(billing))}
+              {detail('User ID', `#${user.id}`)}
+              {detail('Role', user.is_admin ? 'Administrator' : 'Member')}
             </div>
 
             {/* Credits */}
@@ -122,34 +238,20 @@ export default function UserPage({
                 </div>
               </div>
             </div>
-
-            {/* Shortcuts */}
-            <h2 className="mt-8 text-[1.1rem] font-bold tracking-[-0.02em]">Shortcuts</h2>
-            <div className="mt-3 overflow-hidden rounded-2xl border border-line bg-surface shadow-card">
-              {linkRow('Balance & usage', 'Credit ledger and spend history', <Coins className="h-4 w-4" />, () => onNavigate('balance'))}
-              {linkRow('Subscription', 'Plan, renewals and billing portal', <CreditCard className="h-4 w-4" />, () => onNavigate('subscription'))}
-              {linkRow('Pricing & plans', 'Top up credits or change plan', <Tag className="h-4 w-4" />, () => onNavigate('pricing'))}
-              {linkRow('API keys', 'Keys for scripts and agents', <KeyRound className="h-4 w-4" />, () => onNavigate('api-keys'))}
-              {linkRow('Account center', 'Profile and security on the platform site', <ExternalLink className="h-4 w-4" />, () => window.open(`${PLATFORM_BASE}/account`, '_blank', 'noopener'))}
-              {user.is_admin &&
-                linkRow('Admin console', 'Skill review, users and system settings', <Shield className="h-4 w-4" />, () =>
-                  window.open(`${PLATFORM_BASE}/admin`, '_blank', 'noopener'),
-                )}
-            </div>
+            {balance?.points_expires_at && (
+              <p className="mt-3 text-[12px] text-muted-2">
+                {balance.points_expired ? 'Credits expired on' : 'Credits expire on'} {fmtDate(balance.points_expires_at)}
+              </p>
+            )}
 
             <button
               type="button"
               onClick={() => void signOut()}
-              className="mt-6 flex items-center gap-2 rounded-full border border-line px-4 py-2 text-[13px] font-semibold text-orange-dark transition-colors hover:border-orange/50 hover:bg-orange/5"
+              className="mt-8 flex items-center gap-2 rounded-full border border-line px-4 py-2 text-[13px] font-semibold text-orange-dark transition-colors hover:border-orange/50 hover:bg-orange/5"
             >
               <LogOut className="h-4 w-4" />
               Sign out
             </button>
-
-            <p className="mt-6 flex items-center gap-1.5 text-[11px] text-muted-2">
-              <UserIcon className="h-3.5 w-3.5" />
-              Signed in with {user.email}
-            </p>
           </>
         )}
       </div>

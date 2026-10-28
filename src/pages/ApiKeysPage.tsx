@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { ArrowLeft, Check, Copy, KeyRound, Loader2, Plus, Trash2, X } from 'lucide-react';
+import { ArrowLeft, Check, Copy, KeyRound, Loader2, Pencil, Plus, Search, Trash2, X } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { createApiKey, deleteApiKey, listApiKeys, updateApiKey } from '../lib/api';
 import type { ApiKeyItem, ApiKeyListData, CreatedApiKey } from '../types';
@@ -31,6 +31,8 @@ export default function ApiKeysPage({ onBack }: { onBack: () => void }) {
   const { user, openLogin } = useAuth();
   const [data, setData] = useState<ApiKeyListData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [includeInactive, setIncludeInactive] = useState(false);
+  const [query, setQuery] = useState('');
 
   const [createOpen, setCreateOpen] = useState(false);
   const [keyName, setKeyName] = useState('');
@@ -39,25 +41,36 @@ export default function ApiKeysPage({ onBack }: { onBack: () => void }) {
   const [created, setCreated] = useState<CreatedApiKey | null>(null);
   const [copied, setCopied] = useState(false);
 
+  const [renaming, setRenaming] = useState<ApiKeyItem | null>(null);
+  const [renameDraft, setRenameDraft] = useState('');
+  const [savingRename, setSavingRename] = useState(false);
+
   const [updatingId, setUpdatingId] = useState<number | null>(null);
   const [pendingDelete, setPendingDelete] = useState<ApiKeyItem | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  const refresh = useCallback(() => {
+  const load = useCallback(() => {
     setLoading(true);
-    listApiKeys()
+    listApiKeys(includeInactive)
       .then(setData)
-      .catch(() => {})
+      .catch(() => toast.error('Could not load API keys'))
       .finally(() => setLoading(false));
-  }, []);
+  }, [includeInactive]);
 
   useEffect(() => {
     if (!user) {
       setLoading(false);
       return;
     }
-    refresh();
-  }, [user, refresh]);
+    load();
+  }, [user, load]);
+
+  const items = data?.items ?? [];
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return items;
+    return items.filter((k) => `${k.name} ${k.id} ${k.status}`.toLowerCase().includes(q));
+  }, [items, query]);
 
   const submitCreate = async () => {
     const name = keyName.trim();
@@ -75,11 +88,31 @@ export default function ApiKeysPage({ onBack }: { onBack: () => void }) {
       setExpires('none');
       setCreated(result);
       setCopied(false);
-      refresh();
+      load();
     } catch {
       toast.error('Could not create the API key');
     } finally {
       setCreating(false);
+    }
+  };
+
+  const submitRename = async () => {
+    if (!renaming) return;
+    const name = renameDraft.trim();
+    if (!name) {
+      toast.error('Give the key a name');
+      return;
+    }
+    setSavingRename(true);
+    try {
+      await updateApiKey(renaming.id, { name });
+      toast.success('API key renamed');
+      setRenaming(null);
+      load();
+    } catch {
+      toast.error('Could not rename the API key');
+    } finally {
+      setSavingRename(false);
     }
   };
 
@@ -99,7 +132,7 @@ export default function ApiKeysPage({ onBack }: { onBack: () => void }) {
     try {
       await updateApiKey(key.id, { is_active: !key.is_active });
       toast.success(key.is_active ? 'API key disabled' : 'API key enabled');
-      refresh();
+      load();
     } catch {
       toast.error('Could not update the API key');
     } finally {
@@ -114,13 +147,19 @@ export default function ApiKeysPage({ onBack }: { onBack: () => void }) {
       await deleteApiKey(pendingDelete.id);
       toast.success('API key deleted');
       setPendingDelete(null);
-      refresh();
+      load();
     } catch {
       toast.error('Could not delete the API key');
     } finally {
       setDeleting(false);
     }
   };
+
+  const stats = [
+    { label: 'Total', value: data?.total ?? items.length },
+    { label: 'Active', value: data?.active_count ?? 0 },
+    { label: 'Expired', value: data?.expired_count ?? 0 },
+  ];
 
   return (
     <main className="flex h-full min-w-0 flex-1 flex-col overflow-y-auto">
@@ -148,7 +187,7 @@ export default function ApiKeysPage({ onBack }: { onBack: () => void }) {
         )}
       </header>
 
-      <div className="mx-auto w-full max-w-2xl px-6 py-10">
+      <div className="mx-auto w-full max-w-3xl px-6 py-10">
         {!user ? (
           <div className="rounded-2xl border border-line bg-surface p-8 text-center shadow-card">
             <p className="text-[15px] text-muted">Sign in to manage your API keys.</p>
@@ -161,29 +200,64 @@ export default function ApiKeysPage({ onBack }: { onBack: () => void }) {
             <h1 className="text-[1.5rem] font-bold tracking-[-0.03em]">API keys</h1>
             <p className="mt-1 text-[14px] text-muted">
               Keys let your own scripts and agents call the NeoSpark API. Send them as the{' '}
-              <code className="rounded bg-line-soft px-1.5 py-0.5 font-mono text-[12px]">X-API-Key</code> header.
+              <code className="rounded bg-line-soft px-1.5 py-0.5 font-mono text-[12px]">X-API-Key</code> header. The full key is
+              shown only once, at creation.
             </p>
+
+            <div className="mt-5 grid gap-3 sm:grid-cols-3">
+              {stats.map((stat) => (
+                <div key={stat.label} className="rounded-2xl border border-line bg-surface p-4 shadow-card">
+                  <div className="text-[11px] font-bold uppercase tracking-[0.12em] text-muted-2">{stat.label}</div>
+                  <div className="mt-1 text-[1.5rem] font-bold tracking-[-0.03em]">{stat.value}</div>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-5 flex flex-wrap items-center gap-3">
+              <div className="relative min-w-[220px] flex-1 sm:max-w-xs">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-2" />
+                <input
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="Search keys…"
+                  className="w-full rounded-full border border-line bg-surface py-2 pl-9 pr-3 text-[13px] outline-none focus:border-ink"
+                />
+              </div>
+              <label className="flex cursor-pointer items-center gap-2 text-[12px] font-semibold text-muted">
+                <input
+                  type="checkbox"
+                  checked={includeInactive}
+                  onChange={(event) => setIncludeInactive(event.target.checked)}
+                  className="h-3.5 w-3.5 accent-ink"
+                />
+                Show disabled keys
+              </label>
+            </div>
 
             {loading ? (
               <div className="flex items-center justify-center py-16">
                 <Loader2 className="h-6 w-6 animate-spin text-muted-2" />
               </div>
-            ) : !data || data.items.length === 0 ? (
-              <div className="mt-6 rounded-2xl border border-line bg-surface p-10 text-center shadow-card">
+            ) : filtered.length === 0 ? (
+              <div className="mt-5 rounded-2xl border border-line bg-surface p-10 text-center shadow-card">
                 <KeyRound className="mx-auto h-8 w-8 text-muted-2" />
-                <p className="mt-3 text-[14px] font-semibold">No API keys yet</p>
-                <p className="mt-1 text-[13px] text-muted">Create one to connect your scripts or MCP clients.</p>
-                <button
-                  type="button"
-                  onClick={() => setCreateOpen(true)}
-                  className="mt-4 rounded-full bg-ink px-5 py-2 text-[13px] font-bold text-surface"
-                >
-                  Create key
-                </button>
+                <p className="mt-3 text-[14px] font-semibold">{query ? 'No keys match your search' : 'No API keys yet'}</p>
+                <p className="mt-1 text-[13px] text-muted">
+                  {query ? 'Try a different name or status.' : 'Create one to connect your scripts or MCP clients.'}
+                </p>
+                {!query && (
+                  <button
+                    type="button"
+                    onClick={() => setCreateOpen(true)}
+                    className="mt-4 rounded-full bg-ink px-5 py-2 text-[13px] font-bold text-surface"
+                  >
+                    Create key
+                  </button>
+                )}
               </div>
             ) : (
-              <ul className="mt-6 space-y-2.5">
-                {data.items.map((key) => (
+              <ul className="mt-5 space-y-2.5">
+                {filtered.map((key) => (
                   <li key={key.id} className="flex items-center gap-3 rounded-2xl border border-line bg-surface p-4 shadow-card">
                     <span className="flex h-9 w-9 flex-none items-center justify-center rounded-lg bg-line-soft text-ink">
                       <KeyRound className="h-4 w-4" />
@@ -192,12 +266,24 @@ export default function ApiKeysPage({ onBack }: { onBack: () => void }) {
                       <div className="flex items-center gap-2">
                         <span className="truncate text-[13px] font-bold">{key.name}</span>
                         <StatusPill status={key.status} />
+                        <span className="flex-none font-mono text-[10px] text-muted-2">#{key.id}</span>
                       </div>
                       <div className="mt-0.5 truncate text-[11px] text-muted-2">
                         Created {fmt(key.created_at)} · Last used {key.last_used_at ? fmt(key.last_used_at) : 'never'} · Expires{' '}
                         {fmt(key.expires_at)}
                       </div>
                     </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setRenaming(key);
+                        setRenameDraft(key.name);
+                      }}
+                      title="Rename"
+                      className="flex-none rounded-lg p-2 text-muted-2 transition-colors hover:bg-paper hover:text-ink"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </button>
                     <button
                       type="button"
                       onClick={() => void toggleKey(key)}
@@ -244,6 +330,7 @@ export default function ApiKeysPage({ onBack }: { onBack: () => void }) {
                 onChange={(event) => setKeyName(event.target.value)}
                 placeholder="e.g. n8n workflow"
                 autoFocus
+                maxLength={128}
                 className="w-full rounded-lg border border-line bg-surface px-3 py-2 text-[13px] outline-none focus:border-ink"
               />
             </label>
@@ -284,6 +371,45 @@ export default function ApiKeysPage({ onBack }: { onBack: () => void }) {
         </div>
       )}
 
+      {/* Rename dialog */}
+      {renaming && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <button type="button" aria-label="Close" className="absolute inset-0 bg-ink/40 backdrop-blur-sm" onClick={() => setRenaming(null)} />
+          <div className="relative w-full max-w-sm rounded-2xl bg-surface p-6 shadow-panel" role="dialog" aria-modal="true">
+            <h3 className="text-base font-bold tracking-tight">Rename API key</h3>
+            <p className="mt-1 text-[12px] text-muted">Just a label — the key itself does not change.</p>
+            <label className="mt-4 block">
+              <span className="mb-1 block text-[11px] font-bold uppercase tracking-[0.12em] text-muted-2">Name</span>
+              <input
+                value={renameDraft}
+                onChange={(event) => setRenameDraft(event.target.value)}
+                autoFocus
+                maxLength={128}
+                className="w-full rounded-lg border border-line bg-surface px-3 py-2 text-[13px] outline-none focus:border-ink"
+              />
+            </label>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setRenaming(null)}
+                className="rounded-full px-4 py-2 text-sm font-semibold text-muted transition-colors hover:text-ink"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void submitRename()}
+                disabled={savingRename}
+                className="flex items-center gap-1.5 rounded-full bg-ink px-4 py-2 text-sm font-semibold text-surface disabled:opacity-60"
+              >
+                {savingRename && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Reveal dialog */}
       {created && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -305,7 +431,8 @@ export default function ApiKeysPage({ onBack }: { onBack: () => void }) {
             </div>
 
             <p className="mt-3 text-[12px] text-muted">
-              Use it as <code className="rounded bg-line-soft px-1 py-0.5 font-mono text-[11px]">X-API-Key: {created.api_key.slice(0, 8)}…</code>{' '}
+              Use it as{' '}
+              <code className="rounded bg-line-soft px-1 py-0.5 font-mono text-[11px]">X-API-Key: {created.api_key.slice(0, 8)}…</code>{' '}
               when calling the API.
             </p>
 

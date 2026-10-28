@@ -17,7 +17,7 @@ import { deleteSkill, updateSkill, updateSkillImages, updateSkillStatus } from '
 import type { Skill } from '../types';
 import { cn } from '../lib/utils';
 
-const PLATFORM_BASE = 'https://platform.useneospark.com';
+const PLATFORM_BASE = 'https://nsskillhub.netlify.app';
 
 function Badge({ children, tone = 'neutral' }: { children: ReactNode; tone?: 'neutral' | 'mine' | 'off' }) {
   return (
@@ -177,9 +177,7 @@ export default function SkillsPage({
           <div className="truncate text-sm font-bold tracking-tight">Skill</div>
         </div>
         <a
-          href={`${PLATFORM_BASE}/skills`}
-          target="_blank"
-          rel="noreferrer"
+          href={`${PLATFORM_BASE}/publish/`}
           className="flex items-center gap-1.5 rounded-full border border-line px-3 py-1.5 text-[12px] font-semibold text-ink transition-colors hover:border-ink"
         >
           Upload a skill

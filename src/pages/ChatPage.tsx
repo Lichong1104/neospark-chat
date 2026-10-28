@@ -349,7 +349,7 @@ export default function ChatPage() {
       ) : view === 'subscription' ? (
         <SubscriptionPage onBack={() => go('chat')} />
       ) : view === 'user' ? (
-        <UserPage onBack={() => go('chat')} onNavigate={go} />
+        <UserPage onBack={() => go('chat')} />
       ) : view === 'skills' ? (
         <SkillsPage onBack={() => go('chat')} skills={skills} onSkillsChanged={refreshSkills} />
       ) : (
