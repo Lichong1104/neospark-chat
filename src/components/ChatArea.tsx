@@ -25,6 +25,8 @@ interface ChatAreaProps {
   models: ModelOption[];
   model: string;
   onModelChange: (id: string) => void;
+  /** Bumped whenever the conversation changes (new chat / switch / delete). */
+  composerKey: number;
 }
 
 const SUGGESTIONS = [
@@ -55,6 +57,7 @@ export default function ChatArea({
   models,
   model,
   onModelChange,
+  composerKey,
 }: ChatAreaProps) {
   const listRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<HTMLDivElement>(null);
@@ -72,6 +75,19 @@ export default function ChatArea({
   const [slashIndex, setSlashIndex] = useState(0);
   const [mentionMode, setMentionMode] = useState<'select' | 'mention'>('mention');
   const slashRef = useRef<HTMLDivElement>(null);
+
+  // Attachments belong to the conversation they were dropped into. Switching to
+  // another conversation (or starting a new one) must not carry them over, and an
+  // upload that finishes after the switch must not land in the new conversation.
+  const composerKeyRef = useRef(composerKey);
+  useEffect(() => {
+    if (composerKeyRef.current === composerKey) return;
+    composerKeyRef.current = composerKey;
+    setAttachments([]);
+    setUploading(false);
+    setDragActive(false);
+    dragDepth.current = 0;
+  }, [composerKey]);
 
   useEffect(() => {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight });
@@ -278,10 +294,14 @@ export default function ChatArea({
 
   const handleFiles = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
+    const keyAtUploadStart = composerKeyRef.current;
     setUploading(true);
     for (const file of Array.from(files)) {
       try {
         const uploaded = await uploadFile(file);
+        // The user switched conversations while this file was uploading: drop it
+        // instead of attaching it to the conversation they are now looking at.
+        if (composerKeyRef.current !== keyAtUploadStart) return;
         setAttachments((prev) => [
           ...prev,
           {
@@ -296,7 +316,7 @@ export default function ChatArea({
         toast((e as Error).message || 'Upload failed');
       }
     }
-    setUploading(false);
+    if (composerKeyRef.current === keyAtUploadStart) setUploading(false);
   };
 
   const removeAttachment = (id: string) => {

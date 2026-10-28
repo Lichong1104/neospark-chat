@@ -39,6 +39,8 @@ export default function ChatPage() {
   const [streaming, setStreaming] = useState(false);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [loadingSessions, setLoadingSessions] = useState(false);
+  // Bumped on every conversation change so the composer drops its attachments.
+  const [composerKey, setComposerKey] = useState(0);
 
   const abortRef = useRef<AbortController | null>(null);
   const streamingRef = useRef(false);
@@ -122,6 +124,7 @@ export default function ChatPage() {
     setMessages([]);
     setSelectedSkills([]);
     setDraft('');
+    setComposerKey((v) => v + 1);
     navigate('/');
   }, [cancelStream, navigate]);
 
@@ -129,6 +132,8 @@ export default function ChatPage() {
     async (id: string) => {
       cancelStream();
       setActiveId(id);
+      // Different conversation ⇒ the composer starts clean (no stale attachments).
+      if (id !== activeId) setComposerKey((v) => v + 1);
       const s = sessions.find((x) => x.id === id);
       if (s) {
         setSelectedSkills(s.skillIds);
@@ -143,7 +148,7 @@ export default function ChatPage() {
         setLoadingHistory(false);
       }
     },
-    [cancelStream, sessions],
+    [cancelStream, sessions, activeId],
   );
 
   const toggleSkill = useCallback((id: string) => {
@@ -162,6 +167,7 @@ export default function ChatPage() {
         cancelStream();
         setActiveId(null);
         setMessages([]);
+        setComposerKey((v) => v + 1);
       }
       toast('Conversation deleted');
     },
@@ -341,6 +347,7 @@ export default function ChatPage() {
           models={models}
           model={model}
           onModelChange={setModel}
+          composerKey={composerKey}
         />
       ) : view === 'pricing' ? (
         <PricingPage onBack={() => go('chat')} />
