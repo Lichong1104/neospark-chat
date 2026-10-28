@@ -17,7 +17,7 @@ import { deleteSkill, updateSkill, updateSkillImages, updateSkillStatus } from '
 import type { Skill } from '../types';
 import { cn } from '../lib/utils';
 
-const PLATFORM_BASE = 'https://nsskillhub.netlify.app';
+const PLATFORM_BASE = 'https://useneospark.com';
 
 function Badge({ children, tone = 'neutral' }: { children: ReactNode; tone?: 'neutral' | 'mine' | 'off' }) {
   return (
