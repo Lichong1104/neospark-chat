@@ -1,9 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
-import { ChevronDown, Coins, CreditCard, Loader2, LogOut, MessageSquare, PanelLeftClose, PanelLeftOpen, Pin, Plus, Tag, Trash2, User } from 'lucide-react';
-import { useAuth } from '../auth/AuthContext';
-import type { BalanceInfo, BillingState, Session } from '../types';
+import { useMemo, useState } from 'react';
+import { ChevronDown, Coins, CreditCard, Loader2, MessageSquare, PanelLeftClose, PanelLeftOpen, Pin, Plus, Tag, Trash2 } from 'lucide-react';
+import type { Session, Skill } from '../types';
 import { cn } from '../lib/utils';
-import { getBalance, getBillingState } from '../lib/api';
+import UserMenu from './UserMenu';
 
 interface SidebarProps {
   sessions: Session[];
@@ -17,6 +16,8 @@ interface SidebarProps {
   onNavigate: (view: 'chat' | 'pricing' | 'balance' | 'subscription') => void;
   collapsed: boolean;
   onToggleCollapsed: () => void;
+  skills: Skill[];
+  onSkillsChanged: () => void;
 }
 
 function BrandMark() {
@@ -51,24 +52,12 @@ export default function Sidebar({
   onNavigate,
   collapsed,
   onToggleCollapsed,
+  skills,
+  onSkillsChanged,
 }: SidebarProps) {
-  const { user, isLoading, openLogin, signOut } = useAuth();
   const [groupCollapsed, setGroupCollapsed] = useState<Set<string>>(new Set());
   const [pendingDelete, setPendingDelete] = useState<{ id: string; title: string } | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [signOutConfirm, setSignOutConfirm] = useState(false);
-  const [billing, setBilling] = useState<BillingState | null>(null);
-  const [balance, setBalance] = useState<BalanceInfo | null>(null);
-
-  useEffect(() => {
-    if (!user) {
-      setBilling(null);
-      setBalance(null);
-      return;
-    }
-    getBillingState().then(setBilling).catch(() => {});
-    getBalance().then(setBalance).catch(() => {});
-  }, [user]);
 
   const groups = useMemo(() => {
     const now = Date.now();
@@ -114,8 +103,6 @@ export default function Sidebar({
     { key: 'balance', label: 'Balance & usage', icon: Coins },
     { key: 'subscription', label: 'Subscription', icon: CreditCard },
   ] as const;
-
-  const planLabel = billing?.subscription?.planKey;
 
   return (
     <>
@@ -312,54 +299,14 @@ export default function Sidebar({
           </div>
         )}
 
-        {/* User footer */}
+        {/* User footer: one click opens the account + Skill market lists */}
         <div className={cn('mt-auto border-t border-line-soft px-3 py-3', collapsed && 'px-2')}>
-          {user ? (
-            <div className={cn('flex items-center gap-2.5', collapsed && 'flex-col items-center justify-center')}>
-              {user.avatar_url ? (
-                <img src={user.avatar_url} alt="" referrerPolicy="no-referrer" className="h-8 w-8 flex-none rounded-full object-cover" />
-              ) : (
-                <div className="flex h-8 w-8 flex-none items-center justify-center rounded-full bg-orange/15 text-sm font-bold text-orange-deep">
-                  {(user.name || user.email)[0]?.toUpperCase() ?? <User className="h-4 w-4" />}
-                </div>
-              )}
-              {!collapsed && (
-                <>
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-[13px] font-semibold leading-tight">{user.name || user.email}</div>
-                    <div className="truncate text-[11px] text-muted-2">
-                      {planLabel ? (
-                        <span className="capitalize">{planLabel}</span>
-                      ) : (
-                        'Free'
-                      )}
-                      {' · '}
-                      {balance ? `${balance.available_points.toLocaleString('en-US')} credits` : `${user.balance} credits`}
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setSignOutConfirm(true)}
-                    title="Sign out"
-                    className="rounded-lg p-1.5 text-muted-2 transition-colors hover:bg-line-soft hover:text-ink"
-                  >
-                    <LogOut className="h-4 w-4" />
-                  </button>
-                </>
-              )}
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={openLogin}
-              disabled={isLoading}
-              title={collapsed ? 'Sign in' : undefined}
-              className={cn('flex w-full items-center justify-center gap-2 rounded-full border border-ink py-2.5 text-sm font-semibold transition-colors hover:bg-ink hover:text-surface', collapsed && 'px-0')}
-            >
-              <User className="h-4 w-4" />
-              {!collapsed && (isLoading ? 'Loading…' : 'Sign in')}
-            </button>
-          )}
+          <UserMenu
+            collapsed={collapsed}
+            skills={skills}
+            onSkillsChanged={onSkillsChanged}
+            onNavigate={onNavigate}
+          />
         </div>
       </aside>
 
@@ -386,38 +333,6 @@ export default function Sidebar({
                 className="rounded-full bg-ink px-4 py-2 text-sm font-semibold text-surface shadow-[0_1px_2px_rgba(10,10,10,.16),0_10px_22px_-10px_rgba(10,10,10,.5)] transition-transform duration-200 hover:-translate-y-0.5"
               >
                 Delete
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Sign out confirmation dialog */}
-      {signOutConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <button type="button" aria-label="Cancel" className="absolute inset-0 bg-ink/40 backdrop-blur-sm" onClick={() => setSignOutConfirm(false)} />
-          <div className="relative w-full max-w-xs rounded-2xl bg-surface p-6 shadow-panel" role="dialog" aria-modal="true">
-            <h3 className="text-base font-bold tracking-tight">Sign out?</h3>
-            <p className="mt-1.5 text-sm leading-relaxed text-muted">
-              You will be signed out of your account on this device.
-            </p>
-            <div className="mt-5 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setSignOutConfirm(false)}
-                className="rounded-full px-4 py-2 text-sm font-semibold text-muted transition-colors hover:text-ink"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setSignOutConfirm(false);
-                  void signOut();
-                }}
-                className="rounded-full bg-ink px-4 py-2 text-sm font-semibold text-surface shadow-[0_1px_2px_rgba(10,10,10,.16),0_10px_22px_-10px_rgba(10,10,10,.5)] transition-transform duration-200 hover:-translate-y-0.5"
-              >
-                Sign out
               </button>
             </div>
           </div>

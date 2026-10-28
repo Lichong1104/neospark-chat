@@ -3,6 +3,13 @@ export interface Skill {
   name: string;
   description: string;
   emoji?: string;
+  /** Uploader id; null/undefined marks a system skill. */
+  ownerId?: number | null;
+  isActive?: boolean;
+  /** Cover image (first preview), then the full set. */
+  preview?: string | null;
+  previews?: string[];
+  executionMode?: string;
 }
 
 export interface ModelOption {

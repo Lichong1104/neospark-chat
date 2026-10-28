@@ -40,15 +40,28 @@ export default function ChatPage() {
   const abortRef = useRef<AbortController | null>(null);
   const streamingRef = useRef(false);
 
-  // Catalogue (anonymous). On failure keep the fallback snapshot.
-  useEffect(() => {
+  // Catalogue (anonymous). On failure keep the fallback snapshot. Also used by the
+  // account menu after a skill is renamed / disabled / deleted so the composer's
+  // skill picker stays in sync.
+  const refreshSkills = useCallback(() => {
     listSkills()
-      .then((s) => s.length && setSkills(s))
+      .then((list) => {
+        if (!list.length) return;
+        setSkills(list);
+        // Disabled skills stay in the account menu but must drop out of the
+        // composer: picking one would only fail at run time.
+        const selectable = new Set(list.filter((s) => s.isActive !== false).map((s) => s.id));
+        setSelectedSkills((prev) => prev.filter((id) => selectable.has(id)));
+      })
       .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    refreshSkills();
     listModels()
       .then((m) => m.length && setModels(m))
       .catch(() => {});
-  }, []);
+  }, [refreshSkills]);
 
   const refreshSessions = useCallback(() => {
     setLoadingSessions(true);
@@ -286,6 +299,7 @@ export default function ChatPage() {
   );
 
   const activeTitle = activeId ? sessions.find((s) => s.id === activeId)?.title ?? '' : '';
+  const selectableSkills = useMemo(() => skills.filter((s) => s.isActive !== false), [skills]);
 
   return (
     <div className="flex h-full overflow-hidden">
@@ -301,6 +315,8 @@ export default function ChatPage() {
         onNavigate={go}
         collapsed={sidebarCollapsed}
         onToggleCollapsed={() => setSidebarCollapsed((v) => !v)}
+        skills={skills}
+        onSkillsChanged={refreshSkills}
       />
       {view === 'chat' ? (
         <ChatArea
@@ -315,7 +331,7 @@ export default function ChatPage() {
           onConfirmSelect={handleConfirmSelect}
           authenticated={!!user}
           onRequestLogin={openLogin}
-          skills={skills}
+          skills={selectableSkills}
           selectedSkills={selectedSkills}
           onToggleSkill={toggleSkill}
           models={models}

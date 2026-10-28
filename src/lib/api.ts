@@ -120,6 +120,9 @@ interface BackendSkill {
   description?: string;
   is_active?: boolean;
   owner_id?: number | null;
+  execution_mode?: string;
+  preview?: string | null;
+  previews?: string[] | null;
 }
 
 export async function listSkills(): Promise<Skill[]> {
@@ -130,7 +133,45 @@ export async function listSkills(): Promise<Skill[]> {
     name: s.name,
     description: s.description ?? '',
     emoji: emojiFor(s.id),
+    ownerId: s.owner_id ?? null,
+    isActive: s.is_active ?? true,
+    executionMode: s.execution_mode,
+    preview: s.preview ?? s.previews?.[0] ?? null,
+    previews: s.previews ?? (s.preview ? [s.preview] : []),
   }));
+}
+
+/* ---------------------------------------------------------- skill admin -- */
+
+/** Rename / re-describe a skill. Owner or admin only (403 otherwise). */
+export async function updateSkill(
+  skillId: string,
+  body: { name?: string; description?: string },
+): Promise<void> {
+  await http.patch(`/agents/skills/${encodeURIComponent(skillId)}`, body);
+}
+
+/** Enable / disable a skill. Owner or admin only. */
+export async function updateSkillStatus(skillId: string, isActive: boolean): Promise<void> {
+  await http.patch(`/agents/skills/${encodeURIComponent(skillId)}/status`, { is_active: isActive });
+}
+
+/** Replace the preview images (the first one is the cover). Owner or admin only. */
+export async function updateSkillImages(
+  skillId: string,
+  files: File[],
+): Promise<{ preview_image: string; preview_images: string[] }> {
+  const form = new FormData();
+  for (const file of files) form.append('preview_image', file, file.name);
+  return (await http.patch(`/agents/skills/${encodeURIComponent(skillId)}/images`, form)) as {
+    preview_image: string;
+    preview_images: string[];
+  };
+}
+
+/** Delete a skill. Owner or admin only. */
+export async function deleteSkill(skillId: string): Promise<void> {
+  await http.delete(`/agents/skills/${encodeURIComponent(skillId)}`);
 }
 
 export async function listModels(): Promise<ModelOption[]> {
