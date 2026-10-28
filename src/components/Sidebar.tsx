@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { ChevronDown, Coins, CreditCard, Loader2, MessageSquare, PanelLeftClose, PanelLeftOpen, Pin, Plus, Tag, Trash2 } from 'lucide-react';
-import type { Session, Skill } from '../types';
+import type { Session, View } from '../types';
 import { cn } from '../lib/utils';
 import UserMenu from './UserMenu';
 
@@ -12,12 +12,10 @@ interface SidebarProps {
   onDeleteSession: (id: string) => void | Promise<void>;
   onPinSession: (id: string, pinned: boolean) => void;
   onNewChat: () => void;
-  view: 'chat' | 'pricing' | 'balance' | 'subscription';
-  onNavigate: (view: 'chat' | 'pricing' | 'balance' | 'subscription') => void;
+  view: View;
+  onNavigate: (view: View) => void;
   collapsed: boolean;
   onToggleCollapsed: () => void;
-  skills: Skill[];
-  onSkillsChanged: () => void;
 }
 
 function BrandMark() {
@@ -52,8 +50,6 @@ export default function Sidebar({
   onNavigate,
   collapsed,
   onToggleCollapsed,
-  skills,
-  onSkillsChanged,
 }: SidebarProps) {
   const [groupCollapsed, setGroupCollapsed] = useState<Set<string>>(new Set());
   const [pendingDelete, setPendingDelete] = useState<{ id: string; title: string } | null>(null);
@@ -299,14 +295,9 @@ export default function Sidebar({
           </div>
         )}
 
-        {/* User footer: one click opens the account + Skill market lists */}
+        {/* User footer: one click opens User / Skill / API Key / Sign out */}
         <div className={cn('mt-auto border-t border-line-soft px-3 py-3', collapsed && 'px-2')}>
-          <UserMenu
-            collapsed={collapsed}
-            skills={skills}
-            onSkillsChanged={onSkillsChanged}
-            onNavigate={onNavigate}
-          />
+          <UserMenu collapsed={collapsed} onNavigate={onNavigate} />
         </div>
       </aside>
 

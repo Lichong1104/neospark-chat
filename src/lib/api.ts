@@ -1,6 +1,6 @@
 import axios, { AxiosHeaders } from 'axios';
 import type { InternalAxiosRequestConfig } from 'axios';
-import type { BalanceInfo, BillingState, ConfirmPrompt, MediaBlock, ModelOption, PlanStep, PointTransaction, Session, Skill, UserInfo } from '../types';
+import type { ApiKeyListData, BalanceInfo, BillingState, ConfirmPrompt, CreatedApiKey, MediaBlock, ModelOption, PlanStep, PointTransaction, Session, Skill, UserInfo } from '../types';
 import { emojiFor } from '../data/skills';
 
 const API_BASE =
@@ -172,6 +172,34 @@ export async function updateSkillImages(
 /** Delete a skill. Owner or admin only. */
 export async function deleteSkill(skillId: string): Promise<void> {
   await http.delete(`/agents/skills/${encodeURIComponent(skillId)}`);
+}
+
+/* -------------------------------------------------------------- api keys -- */
+
+export async function listApiKeys(): Promise<ApiKeyListData> {
+  const res = (await http.get('/api-keys')) as { data?: ApiKeyListData };
+  return res?.data ?? { items: [], total: 0, active_count: 0, expired_count: 0 };
+}
+
+export async function createApiKey(
+  name: string,
+  expiresDays: number | null,
+): Promise<CreatedApiKey | null> {
+  const res = (await http.post('/api-keys', { name, expires_days: expiresDays })) as {
+    data?: { key?: CreatedApiKey };
+  };
+  return res?.data?.key ?? null;
+}
+
+export async function updateApiKey(
+  keyId: number,
+  body: { name?: string; is_active?: boolean },
+): Promise<void> {
+  await http.put(`/api-keys/${keyId}`, body);
+}
+
+export async function deleteApiKey(keyId: number): Promise<void> {
+  await http.delete(`/api-keys/${keyId}`);
 }
 
 export async function listModels(): Promise<ModelOption[]> {

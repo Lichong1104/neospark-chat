@@ -12,6 +12,30 @@ export interface Skill {
   executionMode?: string;
 }
 
+/** Top-level screens the sidebar can switch between. */
+export type View = 'chat' | 'pricing' | 'balance' | 'subscription' | 'user' | 'skills' | 'api-keys';
+
+export interface ApiKeyItem {
+  id: number;
+  name: string;
+  is_active: boolean;
+  status: 'active' | 'expired' | 'inactive';
+  last_used_at: string | null;
+  expires_at: string | null;
+  created_at: string;
+}
+
+export interface ApiKeyListData {
+  items: ApiKeyItem[];
+  total: number;
+  active_count: number;
+  expired_count: number;
+}
+
+export interface CreatedApiKey extends ApiKeyItem {
+  api_key: string;
+}
+
 export interface ModelOption {
   id: string;
   label: string;

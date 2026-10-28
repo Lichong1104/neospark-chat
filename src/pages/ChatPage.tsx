@@ -7,9 +7,12 @@ import ChatArea from '../components/ChatArea';
 import PricingPage from './PricingPage';
 import BalancePage from './BalancePage';
 import SubscriptionPage from './SubscriptionPage';
+import UserPage from './UserPage';
+import SkillsPage from './SkillsPage';
+import ApiKeysPage from './ApiKeysPage';
 import { MODELS, SKILLS } from '../data/skills';
 import { chatStream, deleteSession, getSessionMessages, listModels, listSessions, listSkills, pinSession } from '../lib/api';
-import type { Attachment, MediaBlock, Message, Session } from '../types';
+import type { Attachment, MediaBlock, Message, Session, View } from '../types';
 import { uid } from '../lib/utils';
 
 function buildMessageWithAttachments(text: string, attachments: Attachment[]): string {
@@ -281,18 +284,21 @@ export default function ChatPage() {
     [sendMessage],
   );
 
-  const view: 'chat' | 'pricing' | 'balance' | 'subscription' = (() => {
+  const view: View = (() => {
     const p = location.pathname;
     if (p.startsWith('/pricing')) return 'pricing';
     if (p.startsWith('/balance')) return 'balance';
     if (p.startsWith('/subscription')) return 'subscription';
+    if (p.startsWith('/user')) return 'user';
+    if (p.startsWith('/skills')) return 'skills';
+    if (p.startsWith('/api-keys')) return 'api-keys';
     return 'chat';
   })();
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   const go = useCallback(
-    (v: 'chat' | 'pricing' | 'balance' | 'subscription') => {
+    (v: View) => {
       navigate(v === 'chat' ? '/' : `/${v}`);
     },
     [navigate],
@@ -315,8 +321,6 @@ export default function ChatPage() {
         onNavigate={go}
         collapsed={sidebarCollapsed}
         onToggleCollapsed={() => setSidebarCollapsed((v) => !v)}
-        skills={skills}
-        onSkillsChanged={refreshSkills}
       />
       {view === 'chat' ? (
         <ChatArea
@@ -342,8 +346,14 @@ export default function ChatPage() {
         <PricingPage onBack={() => go('chat')} />
       ) : view === 'balance' ? (
         <BalancePage onBack={() => go('chat')} />
-      ) : (
+      ) : view === 'subscription' ? (
         <SubscriptionPage onBack={() => go('chat')} />
+      ) : view === 'user' ? (
+        <UserPage onBack={() => go('chat')} onNavigate={go} />
+      ) : view === 'skills' ? (
+        <SkillsPage onBack={() => go('chat')} skills={skills} onSkillsChanged={refreshSkills} />
+      ) : (
+        <ApiKeysPage onBack={() => go('chat')} />
       )}
     </div>
   );
