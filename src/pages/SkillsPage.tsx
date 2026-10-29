@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import {
   ArrowLeft,
   Check,
+  Download,
   ExternalLink,
   ImagePlus,
   Loader2,
@@ -13,7 +14,7 @@ import {
   X,
 } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
-import { deleteSkill, updateSkill, updateSkillImages, updateSkillStatus } from '../lib/api';
+import { deleteSkill, downloadSkillBundle, updateSkill, updateSkillImages, updateSkillStatus } from '../lib/api';
 import type { Skill } from '../types';
 import { cn } from '../lib/utils';
 
@@ -54,6 +55,7 @@ export default function SkillsPage({
   const [toggling, setToggling] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const imageInputRef = useRef<HTMLInputElement>(null);
 
@@ -162,6 +164,33 @@ export default function SkillsPage({
     }
   };
 
+  // The bundle carries a key scoped to this one Skill plus the Claude Code /
+  // Codex config. Every download rotates that key, so the link is fetched live
+  // rather than cached.
+  const downloadBundle = async (skill: Skill) => {
+    if (!user) {
+      openLogin();
+      return;
+    }
+    setDownloadingId(skill.id);
+    try {
+      const blob = await downloadSkillBundle(skill.id);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `neospark-${skill.id}-mcp.zip`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      toast.success(`Downloading ${skill.name} — unzip and follow the README to connect your agent`);
+    } catch {
+      toast.error('Could not download the skill');
+    } finally {
+      setDownloadingId(null);
+    }
+  };
+
   return (
     <main className="flex h-full min-w-0 flex-1 flex-col overflow-y-auto">
       <header className="flex items-center gap-3 border-b border-line bg-surface/70 px-6 py-3 backdrop-blur">
@@ -188,7 +217,8 @@ export default function SkillsPage({
       <div className="mx-auto w-full max-w-5xl px-6 py-8">
         <h1 className="text-[1.5rem] font-bold tracking-[-0.03em]">Skill market</h1>
         <p className="mt-1 text-[14px] text-muted">
-          Every Skill available in chat. Skills you uploaded — or any skill, for admins — can be edited here.
+          Every Skill available in chat. Download one as an MCP bundle for Claude Code or Codex;
+          Skills you uploaded — or any skill, for admins — can also be edited here.
         </p>
 
         <div className="mt-5 flex flex-wrap items-center gap-3">
@@ -242,20 +272,36 @@ export default function SkillsPage({
                     </Badge>
                   </div>
                   <p className="mt-1.5 line-clamp-3 flex-1 text-[12px] leading-relaxed text-muted">{skill.description || 'No description yet.'}</p>
-                  <div className="mt-3 flex items-center justify-between">
-                    <span className="font-mono text-[10px] text-muted-2">{skill.id}</span>
-                    {canManage(skill) ? (
+                  <div className="mt-3 flex items-center justify-between gap-2">
+                    <span className="truncate font-mono text-[10px] text-muted-2">{skill.id}</span>
+                    <div className="flex flex-none items-center gap-1.5">
                       <button
                         type="button"
-                        onClick={() => openEditor(skill)}
-                        className="flex items-center gap-1.5 rounded-full border border-line px-3 py-1 text-[11px] font-bold text-ink transition-colors hover:border-ink"
+                        onClick={() => void downloadBundle(skill)}
+                        disabled={downloadingId === skill.id}
+                        title="Download a zip with a key scoped to this Skill and the Claude Code / Codex config"
+                        className="flex items-center gap-1.5 rounded-full border border-line px-3 py-1 text-[11px] font-bold text-ink transition-colors hover:border-ink disabled:opacity-60"
                       >
-                        <Pencil className="h-3 w-3" />
-                        Edit
+                        {downloadingId === skill.id ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <Download className="h-3 w-3" />
+                        )}
+                        Download
                       </button>
-                    ) : (
-                      <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-2">Read only</span>
-                    )}
+                      {canManage(skill) ? (
+                        <button
+                          type="button"
+                          onClick={() => openEditor(skill)}
+                          className="flex items-center gap-1.5 rounded-full border border-line px-3 py-1 text-[11px] font-bold text-ink transition-colors hover:border-ink"
+                        >
+                          <Pencil className="h-3 w-3" />
+                          Edit
+                        </button>
+                      ) : (
+                        <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-2">Read only</span>
+                      )}
+                    </div>
                   </div>
                 </div>
               </article>
