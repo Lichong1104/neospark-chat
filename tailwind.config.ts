@@ -17,13 +17,23 @@ export default {
         'line-soft': '#f1f1ef',
         orange: '#ff793e',
         'orange-deep': '#f05a28',
+        'orange-ink': '#b5390f',
         'orange-dark': '#e53229',
+        danger: '#b42318',
+        success: '#03704d',
+        'success-soft': '#e2faf1',
         purple: '#c98fe2',
         'purple-light': '#df9df4',
         'purple-dark': '#9e71c9',
         yellow: '#ffd939',
         'yellow-mid': '#eec60a',
         'yellow-dark': '#dda61b',
+      },
+      fontSize: {
+        // 10px, for uppercase labels only. Everything else uses the Tailwind scale.
+        micro: ['0.625rem', { lineHeight: '0.875rem' }],
+        // One step above 3xl, for the chat empty state and the billing price.
+        display: ['2rem', { lineHeight: '2.25rem' }],
       },
       fontFamily: {
         sans: ['"Bricolage Grotesque"', 'ui-sans-serif', 'system-ui', 'sans-serif'],

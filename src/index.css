@@ -14,6 +14,11 @@
   --line-soft: #f1f1ef;
   --orange: #ff793e;
   --orange-deep: #f05a28;
+  /* Deep enough for 4.5:1 on paper; use for small text, not for fills. */
+  --orange-ink: #b5390f;
+  --danger: #b42318;
+  --success: #03704d;
+  --success-soft: #e2faf1;
   --purple: #c98fe2;
   --purple-light: #df9df4;
   --yellow: #ffd939;
@@ -62,12 +67,31 @@ body {
   border-radius: 8px;
 }
 
-/* The chat composer is a text field; focusing it should not draw the global
-   focus ring. Its containing shell already signals focus. */
-textarea:focus-visible,
+/* The composer's contentEditable has no native border; its shell draws the
+   focus ring instead (see focus-within on the input shell). Textareas keep the
+   global ring. */
 [contenteditable]:focus-visible,
 [contenteditable]:focus {
   outline: none;
+}
+
+@layer components {
+  /* Header and toolbar icon button: 40px hit area on every breakpoint. */
+  .icon-btn {
+    @apply flex h-10 w-10 flex-none items-center justify-center rounded-xl text-muted-2 transition-colors hover:bg-line-soft hover:text-ink;
+  }
+}
+
+/* Row actions that only make sense with a pointer. On touch devices they stay
+   visible so pinning and deleting a conversation is reachable. */
+@media (hover: hover) and (pointer: fine) {
+  .hover-reveal {
+    opacity: 0;
+  }
+  .group:hover .hover-reveal,
+  .hover-reveal:focus-visible {
+    opacity: 1;
+  }
 }
 
 /* @SkillName mentions highlighted in the composer backdrop. */
@@ -76,7 +100,7 @@ textarea:focus-visible,
   align-items: center;
   gap: 3px;
   background: rgba(255, 121, 62, 0.18);
-  color: #d94f1e;
+  color: var(--orange-ink);
   border-radius: 6px;
   padding: 0 3px;
   font-weight: 600;
@@ -103,7 +127,7 @@ textarea:focus-visible,
   border: 1px solid var(--line);
   border-radius: 999px;
   box-shadow: 0 1px 2px rgba(10, 10, 10, 0.04), 0 1px 3px rgba(10, 10, 10, 0.05);
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -236,7 +260,7 @@ textarea:focus-visible,
    plugin so the prose sits on the same ink/paper scale as the rest of the app. */
 .markdown-body {
   line-height: 1.65;
-  font-size: 0.95rem;
+  font-size: 1rem;
   overflow-wrap: break-word;
 }
 .markdown-body > *:first-child {
@@ -305,15 +329,20 @@ textarea:focus-visible,
   color: var(--muted);
 }
 .markdown-body a {
-  color: var(--orange-deep);
+  color: var(--orange-ink);
   text-decoration: underline;
   text-underline-offset: 3px;
 }
-.markdown-body table {
-  border-collapse: collapse;
+/* Tables scroll sideways instead of pushing the whole message column wide. */
+.markdown-table-wrap {
   margin: 0.8em 0;
+  overflow-x: auto;
+}
+.markdown-table-wrap table {
+  border-collapse: collapse;
+  margin: 0;
   width: 100%;
-  font-size: 0.88rem;
+  font-size: 0.875rem;
 }
 .markdown-body th,
 .markdown-body td {

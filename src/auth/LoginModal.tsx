@@ -93,11 +93,11 @@ export default function LoginModal() {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true">
       <button type="button" aria-label="Close" className="absolute inset-0 bg-ink/40 backdrop-blur-sm" onClick={close} />
-      <div className="relative w-full max-w-sm rounded-2xl bg-surface p-7 shadow-panel">
+      <div className="relative max-h-[90vh] w-full max-w-sm overflow-y-auto rounded-2xl bg-surface p-5 shadow-panel sm:p-7">
         <button
           type="button"
           onClick={close}
-          className="absolute right-4 top-4 rounded-full p-1.5 text-muted-2 transition-colors hover:bg-line-soft hover:text-ink"
+          className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full text-muted-2 transition-colors hover:bg-line-soft hover:text-ink"
           aria-label="Close"
         >
           <X className="h-4 w-4" />
@@ -114,7 +114,7 @@ export default function LoginModal() {
             <button
               type="button"
               onClick={google}
-              className="flex w-full items-center justify-center gap-3 rounded-xl border border-line bg-surface py-3 text-sm font-semibold shadow-card transition-colors hover:bg-paper"
+              className="flex min-h-11 w-full items-center justify-center gap-3 rounded-xl border border-line bg-surface py-3 text-sm font-semibold shadow-card transition-colors hover:bg-paper"
             >
               <GoogleMark />
               Continue with Google
@@ -133,13 +133,13 @@ export default function LoginModal() {
               onKeyDown={(e) => e.key === 'Enter' && send()}
               placeholder="you@example.com"
               autoFocus
-              className="w-full rounded-xl border border-line bg-paper px-4 py-3 text-sm outline-none transition-colors focus:border-ink"
+              className="min-h-11 w-full rounded-xl border border-line bg-paper px-4 py-3 text-base transition-colors focus:border-ink"
             />
             <button
               type="button"
               onClick={send}
               disabled={busy || !email.includes('@')}
-              className="flex w-full items-center justify-center gap-2 rounded-full bg-ink py-3 text-sm font-semibold text-surface shadow-[0_1px_2px_rgba(10,10,10,.16),0_10px_22px_-10px_rgba(10,10,10,.5)] transition-opacity disabled:opacity-40"
+              className="flex min-h-11 w-full items-center justify-center gap-2 rounded-full bg-ink py-3 text-sm font-semibold text-surface shadow-[0_1px_2px_rgba(10,10,10,.16),0_10px_22px_-10px_rgba(10,10,10,.5)] transition-opacity disabled:opacity-40"
             >
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
               Send code
@@ -156,13 +156,13 @@ export default function LoginModal() {
               onKeyDown={(e) => e.key === 'Enter' && verify()}
               placeholder="6-digit code"
               autoFocus
-              className="w-full rounded-xl border border-line bg-paper px-4 py-3 text-center font-mono text-lg tracking-[0.4em] outline-none transition-colors focus:border-ink"
+              className="min-h-11 w-full rounded-xl border border-line bg-paper px-4 py-3 text-center font-mono text-lg tracking-[0.4em] transition-colors focus:border-ink"
             />
             <button
               type="button"
               onClick={verify}
               disabled={busy || code.trim().length < 4}
-              className="flex w-full items-center justify-center gap-2 rounded-full bg-ink py-3 text-sm font-semibold text-surface shadow-[0_1px_2px_rgba(10,10,10,.16),0_10px_22px_-10px_rgba(10,10,10,.5)] transition-opacity disabled:opacity-40"
+              className="flex min-h-11 w-full items-center justify-center gap-2 rounded-full bg-ink py-3 text-sm font-semibold text-surface shadow-[0_1px_2px_rgba(10,10,10,.16),0_10px_22px_-10px_rgba(10,10,10,.5)] transition-opacity disabled:opacity-40"
             >
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
               Verify & sign in
@@ -174,7 +174,7 @@ export default function LoginModal() {
                 setCode('');
                 setError(null);
               }}
-              className="flex w-full items-center justify-center gap-1.5 py-1 text-xs font-semibold text-muted transition-colors hover:text-ink"
+              className="flex min-h-9 w-full items-center justify-center gap-1.5 py-1 text-xs font-semibold text-muted transition-colors hover:text-ink"
             >
               <ArrowLeft className="h-3.5 w-3.5" />
               Use a different email
@@ -183,7 +183,7 @@ export default function LoginModal() {
         )}
 
         {error ? (
-          <p className="mt-4 rounded-lg bg-orange/10 px-3 py-2 text-xs font-medium text-orange-deep">{error}</p>
+          <p className="mt-4 rounded-lg bg-orange/10 px-3 py-2 text-sm font-medium text-orange-ink">{error}</p>
         ) : null}
       </div>
     </div>

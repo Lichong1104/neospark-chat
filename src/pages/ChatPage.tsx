@@ -7,6 +7,8 @@ import ChatArea from '../components/ChatArea';
 import PricingPage from './PricingPage';
 import BalancePage from './BalancePage';
 import SubscriptionPage from './SubscriptionPage';
+import DocsPage from './DocsPage';
+import SkillStorePage from './SkillStorePage';
 import UserPage from './UserPage';
 import SkillsPage from './SkillsPage';
 import ApiKeysPage from './ApiKeysPage';
@@ -295,6 +297,8 @@ export default function ChatPage() {
     if (p.startsWith('/pricing')) return 'pricing';
     if (p.startsWith('/balance')) return 'balance';
     if (p.startsWith('/subscription')) return 'subscription';
+    if (p.startsWith('/docs')) return 'docs';
+    if (p.startsWith('/skill-store')) return 'skill-store';
     if (p.startsWith('/user')) return 'user';
     if (p.startsWith('/skills')) return 'skills';
     if (p.startsWith('/api-keys')) return 'api-keys';
@@ -302,6 +306,28 @@ export default function ChatPage() {
   })();
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+
+  // The drawer is an overlay; a route change should always dismiss it.
+  useEffect(() => {
+    setMobileNavOpen(false);
+  }, [location.pathname]);
+
+  // Route titles live here so each page does not have to remember to set one.
+  useEffect(() => {
+    const titles: Record<View, string> = {
+      chat: 'NeoSpark — Chat',
+      pricing: 'Pricing — NeoSpark',
+      balance: 'Balance & usage — NeoSpark',
+      subscription: 'Subscription — NeoSpark',
+      docs: 'Docs — NeoSpark',
+      'skill-store': 'Skill Store — NeoSpark',
+      user: 'Account — NeoSpark',
+      skills: 'Skills — NeoSpark',
+      'api-keys': 'API keys — NeoSpark',
+    };
+    document.title = titles[view];
+  }, [view]);
 
   const go = useCallback(
     (v: View) => {
@@ -327,6 +353,8 @@ export default function ChatPage() {
         onNavigate={go}
         collapsed={sidebarCollapsed}
         onToggleCollapsed={() => setSidebarCollapsed((v) => !v)}
+        mobileOpen={mobileNavOpen}
+        onCloseMobile={() => setMobileNavOpen(false)}
       />
       {view === 'chat' ? (
         <ChatArea
@@ -348,19 +376,34 @@ export default function ChatPage() {
           model={model}
           onModelChange={setModel}
           composerKey={composerKey}
+          onOpenNav={() => setMobileNavOpen(true)}
         />
       ) : view === 'pricing' ? (
-        <PricingPage onBack={() => go('chat')} />
+        <PricingPage onBack={() => go('chat')} onOpenNav={() => setMobileNavOpen(true)} />
       ) : view === 'balance' ? (
-        <BalancePage onBack={() => go('chat')} />
+        <BalancePage onBack={() => go('chat')} onOpenNav={() => setMobileNavOpen(true)} />
       ) : view === 'subscription' ? (
-        <SubscriptionPage onBack={() => go('chat')} />
+        <SubscriptionPage onBack={() => go('chat')} onOpenNav={() => setMobileNavOpen(true)} />
+      ) : view === 'docs' ? (
+        <DocsPage onBack={() => go('chat')} onOpenNav={() => setMobileNavOpen(true)} />
+      ) : view === 'skill-store' ? (
+        <SkillStorePage
+          onBack={() => go('chat')}
+          onOpenNav={() => setMobileNavOpen(true)}
+          skills={skills}
+          onNavigate={go}
+        />
       ) : view === 'user' ? (
-        <UserPage onBack={() => go('chat')} />
+        <UserPage onBack={() => go('chat')} onOpenNav={() => setMobileNavOpen(true)} />
       ) : view === 'skills' ? (
-        <SkillsPage onBack={() => go('chat')} skills={skills} onSkillsChanged={refreshSkills} />
+        <SkillsPage
+          onBack={() => go('chat')}
+          onOpenNav={() => setMobileNavOpen(true)}
+          skills={skills}
+          onSkillsChanged={refreshSkills}
+        />
       ) : (
-        <ApiKeysPage onBack={() => go('chat')} />
+        <ApiKeysPage onBack={() => go('chat')} onOpenNav={() => setMobileNavOpen(true)} />
       )}
     </div>
   );

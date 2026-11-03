@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, Camera, Check, Coins, Loader2, LogOut, Pencil, Snowflake, Tag, X } from 'lucide-react';
+import { Camera, Check, Coins, Loader2, LogOut, Pencil, Snowflake, Tag, X } from 'lucide-react';
 import { toast } from 'sonner';
+import PageShell from '../components/PageShell';
 import { useAuth } from '../auth/AuthContext';
 import { getBalance, getBillingState, updateProfile, uploadAvatar } from '../lib/api';
 import type { BalanceInfo, BillingState } from '../types';
@@ -20,7 +21,7 @@ function planStatus(billing: BillingState | null): string {
   return sub.status ? `${sub.status[0].toUpperCase()}${sub.status.slice(1)}` : 'Active';
 }
 
-export default function UserPage({ onBack }: { onBack: () => void }) {
+export default function UserPage({ onBack, onOpenNav }: { onBack: () => void; onOpenNav: () => void }) {
   const { user, openLogin, signOut, refresh } = useAuth();
   const [balance, setBalance] = useState<BalanceInfo | null>(null);
   const [billing, setBilling] = useState<BillingState | null>(null);
@@ -81,39 +82,24 @@ export default function UserPage({ onBack }: { onBack: () => void }) {
 
   const detail = (label: string, value: string) => (
     <div className="flex items-center justify-between gap-4 border-b border-line-soft px-4 py-3 last:border-b-0">
-      <span className="flex-none text-[12px] font-bold uppercase tracking-[0.1em] text-muted-2">{label}</span>
-      <span className="min-w-0 truncate text-right text-[13px] font-semibold">{value}</span>
+      <span className="flex-none text-xs font-bold uppercase tracking-[0.1em] text-muted-2">{label}</span>
+      <span className="min-w-0 truncate text-right text-sm font-semibold">{value}</span>
     </div>
   );
 
   return (
-    <main className="flex h-full min-w-0 flex-1 flex-col overflow-y-auto">
-      <header className="flex items-center gap-3 border-b border-line bg-surface/70 px-6 py-3 backdrop-blur">
-        <button
-          type="button"
-          onClick={onBack}
-          className="flex items-center gap-1.5 rounded-lg px-2 py-1 text-sm font-semibold text-muted transition-colors hover:text-ink"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to chat
-        </button>
-        <div className="min-w-0 flex-1">
-          <div className="truncate text-sm font-bold tracking-tight">User</div>
-        </div>
-      </header>
-
-      <div className="mx-auto w-full max-w-2xl px-6 py-10">
+    <PageShell title="User" onBack={onBack} onOpenNav={onOpenNav}>
         {!user ? (
           <div className="rounded-2xl border border-line bg-surface p-8 text-center shadow-card">
-            <p className="text-[15px] text-muted">Sign in to see your account.</p>
-            <button type="button" onClick={openLogin} className="mt-4 rounded-full bg-ink px-5 py-2 text-sm font-semibold text-surface">
+            <p className="text-base text-muted">Sign in to see your account.</p>
+            <button type="button" onClick={openLogin} className="mt-4 min-h-10 rounded-full bg-ink px-5 py-2 text-sm font-semibold text-surface">
               Sign in
             </button>
           </div>
         ) : (
           <>
-            <h1 className="text-[1.5rem] font-bold tracking-[-0.03em]">Account</h1>
-            <p className="mt-1 text-[14px] text-muted">Your profile, plan and credit balance.</p>
+            <h1 className="text-2xl font-bold tracking-[-0.03em]">Account</h1>
+            <p className="mt-1 text-sm text-muted">Your profile, plan and credit balance.</p>
 
             {/* Profile */}
             <div className="mt-6 flex items-center gap-4 rounded-2xl border border-line bg-surface p-5 shadow-card">
@@ -121,7 +107,7 @@ export default function UserPage({ onBack }: { onBack: () => void }) {
                 {user.avatar_url ? (
                   <img src={user.avatar_url} alt="" referrerPolicy="no-referrer" className="h-16 w-16 rounded-full object-cover" />
                 ) : (
-                  <div className="flex h-16 w-16 items-center justify-center rounded-full bg-orange/15 text-xl font-bold text-orange-deep">
+                  <div className="flex h-16 w-16 items-center justify-center rounded-full bg-orange/15 text-xl font-bold text-orange-ink">
                     {(user.name || user.email)[0]?.toUpperCase()}
                   </div>
                 )}
@@ -155,7 +141,7 @@ export default function UserPage({ onBack }: { onBack: () => void }) {
                       onChange={(event) => setNameDraft(event.target.value)}
                       autoFocus
                       maxLength={255}
-                      className="min-w-0 flex-1 rounded-lg border border-line bg-surface px-2.5 py-1.5 text-[14px] font-bold outline-none focus:border-ink"
+                      className="min-w-0 flex-1 rounded-lg border border-line bg-surface px-2.5 py-1.5 text-base font-bold transition-colors focus:border-ink sm:text-sm"
                     />
                     <button
                       type="button"
@@ -177,7 +163,7 @@ export default function UserPage({ onBack }: { onBack: () => void }) {
                   </div>
                 ) : (
                   <div className="flex items-center gap-2">
-                    <span className="min-w-0 truncate text-[16px] font-bold tracking-tight">{user.name || 'NeoSpark user'}</span>
+                    <span className="min-w-0 truncate text-base font-bold tracking-tight">{user.name || 'NeoSpark user'}</span>
                     <button
                       type="button"
                       onClick={startEditName}
@@ -188,8 +174,8 @@ export default function UserPage({ onBack }: { onBack: () => void }) {
                     </button>
                   </div>
                 )}
-                <div className="truncate text-[13px] text-muted-2">{user.email}</div>
-                <div className="mt-1 flex items-center gap-1.5 text-[11px] text-muted-2">
+                <div className="truncate text-sm text-muted-2">{user.email}</div>
+                <div className="mt-1 flex items-center gap-1.5 text-xs text-muted-2">
                   <span className="rounded-full bg-line-soft px-2 py-0.5 font-bold uppercase tracking-wide">{planLabel}</span>
                   <span>User #{user.id}</span>
                 </div>
@@ -197,7 +183,7 @@ export default function UserPage({ onBack }: { onBack: () => void }) {
             </div>
 
             {/* Account details */}
-            <h2 className="mt-8 text-[1.1rem] font-bold tracking-[-0.02em]">Account details</h2>
+            <h2 className="mt-8 text-lg font-bold tracking-[-0.02em]">Account details</h2>
             <div className="mt-3 overflow-hidden rounded-2xl border border-line bg-surface shadow-card">
               {detail('Email', user.email)}
               {detail('Registered', fmtDate(user.created_at))}
@@ -208,38 +194,38 @@ export default function UserPage({ onBack }: { onBack: () => void }) {
             </div>
 
             {/* Credits */}
-            <h2 className="mt-8 text-[1.1rem] font-bold tracking-[-0.02em]">Credits</h2>
+            <h2 className="mt-8 text-lg font-bold tracking-[-0.02em]">Credits</h2>
             <div className="mt-3 grid gap-3 sm:grid-cols-3">
               <div className="rounded-2xl border border-line bg-surface p-4 shadow-card">
-                <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.12em] text-muted-2">
+                <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.12em] text-muted-2">
                   <Coins className="h-4 w-4" />
                   Available
                 </div>
-                <div className="mt-1.5 text-[1.6rem] font-bold tracking-[-0.03em]">
+                <div className="mt-1.5 text-3xl font-bold tracking-[-0.03em]">
                   {balance ? balance.available_points.toLocaleString('en-US') : user.balance.toLocaleString('en-US')}
                 </div>
               </div>
               <div className="rounded-2xl border border-line bg-surface p-4 shadow-card">
-                <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.12em] text-muted-2">
+                <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.12em] text-muted-2">
                   <Snowflake className="h-4 w-4" />
                   Frozen
                 </div>
-                <div className="mt-1.5 text-[1.6rem] font-bold tracking-[-0.03em]">
+                <div className="mt-1.5 text-3xl font-bold tracking-[-0.03em]">
                   {balance ? balance.frozen_points.toLocaleString('en-US') : '—'}
                 </div>
               </div>
               <div className="rounded-2xl border border-line bg-surface p-4 shadow-card">
-                <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.12em] text-muted-2">
+                <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.12em] text-muted-2">
                   <Tag className="h-4 w-4" />
                   Total
                 </div>
-                <div className="mt-1.5 text-[1.6rem] font-bold tracking-[-0.03em]">
+                <div className="mt-1.5 text-3xl font-bold tracking-[-0.03em]">
                   {balance ? balance.total_points.toLocaleString('en-US') : '—'}
                 </div>
               </div>
             </div>
             {balance?.points_expires_at && (
-              <p className="mt-3 text-[12px] text-muted-2">
+              <p className="mt-3 text-xs text-muted-2">
                 {balance.points_expired ? 'Credits expired on' : 'Credits expire on'} {fmtDate(balance.points_expires_at)}
               </p>
             )}
@@ -247,14 +233,13 @@ export default function UserPage({ onBack }: { onBack: () => void }) {
             <button
               type="button"
               onClick={() => void signOut()}
-              className="mt-8 flex items-center gap-2 rounded-full border border-line px-4 py-2 text-[13px] font-semibold text-orange-dark transition-colors hover:border-orange/50 hover:bg-orange/5"
+              className="mt-8 flex min-h-10 items-center gap-2 rounded-full border border-line px-4 py-2 text-sm font-semibold text-danger transition-colors hover:border-orange/50 hover:bg-orange/5"
             >
               <LogOut className="h-4 w-4" />
               Sign out
             </button>
           </>
         )}
-      </div>
-    </main>
+    </PageShell>
   );
 }

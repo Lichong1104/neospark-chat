@@ -28,7 +28,7 @@ function UserAvatar() {
     );
   }
   return (
-    <div className="mt-0.5 flex h-7 w-7 flex-none items-center justify-center rounded-full bg-orange/15 text-xs font-bold text-orange-deep">
+    <div className="mt-0.5 flex h-7 w-7 flex-none items-center justify-center rounded-full bg-orange/15 text-xs font-bold text-orange-ink">
       {(user?.name || user?.email || '?')[0]?.toUpperCase()}
     </div>
   );
@@ -56,8 +56,8 @@ export function Message({
   if (message.role === 'user') {
     return (
       <div className="animate-fade-up flex justify-end gap-2.5">
-        <div className="max-w-[82%] rounded-2xl rounded-br-md bg-ink px-4 py-3 shadow-[0_1px_2px_rgba(10,10,10,.16),0_10px_22px_-10px_rgba(10,10,10,.5)]">
-          <p className="whitespace-pre-wrap break-words text-[0.95rem] leading-relaxed text-white">
+        <div className="max-w-[88%] rounded-2xl rounded-br-md bg-ink px-4 py-3 shadow-[0_1px_2px_rgba(10,10,10,.16),0_10px_22px_-10px_rgba(10,10,10,.5)] sm:max-w-[75%]">
+          <p className="whitespace-pre-wrap break-words text-base leading-relaxed text-surface">
             {message.content}
           </p>
         </div>
@@ -71,113 +71,117 @@ export function Message({
 
   return (
     <div className="animate-fade-up flex items-start gap-3">
-      <div className="mt-0.5 flex h-7 w-7 flex-none items-center justify-center rounded-full border border-line bg-surface shadow-card">
+      <div className="mt-1 flex h-7 w-7 flex-none items-center justify-center rounded-full border border-line bg-surface shadow-card">
         <RingMark className="h-4 w-4" />
       </div>
-      <div className="min-w-0 max-w-[82%]">
-        <div
-          className={cn(
-            'rounded-2xl rounded-tl-md border border-line-soft bg-surface px-4 py-3 shadow-card',
-            message.streaming && 'border-dashed border-orange/40',
-          )}
-        >
-          {message.content ? (
-            <div className="markdown-body">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
-            </div>
-          ) : showThinking ? (
-            <ThinkingDots />
-          ) : null}
+      <div className="min-w-0 flex-1 space-y-3">
+        {message.content ? (
+          <div className="markdown-body">
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              components={{
+                table: ({ node: _node, ...props }) => (
+                  <div className="markdown-table-wrap">
+                    <table {...props} />
+                  </div>
+                ),
+              }}
+            >
+              {message.content}
+            </ReactMarkdown>
+          </div>
+        ) : showThinking ? (
+          <ThinkingDots />
+        ) : null}
 
-          {media.length > 0 ? (
-            <div className={cn('grid gap-3', media.length === 1 ? '' : 'grid-cols-2', message.content && 'mt-3')}>
-              {media.map((block, i) => {
-                if (block.type === 'image') {
-                  return (
-                    <img
-                      key={i}
-                      src={block.url}
-                      alt={block.filename || 'Generated image'}
-                      loading="lazy"
-                      className="w-full rounded-xl border border-line-soft object-cover"
-                    />
-                  );
-                }
-                if (block.type === 'video') {
-                  return <video key={i} src={block.url} controls className="w-full rounded-xl border border-line-soft" />;
-                }
+        {media.length > 0 ? (
+          <div className={cn('grid gap-3', media.length === 1 ? '' : 'grid-cols-2')}>
+            {media.map((block, i) => {
+              if (block.type === 'image') {
                 return (
-                  <a
+                  <img
                     key={i}
-                    href={block.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 rounded-xl border border-line-soft bg-paper px-3 py-2 text-[13px] font-medium text-ink-2 transition-colors hover:border-ink"
-                  >
-                    <FileText className="h-4 w-4 flex-none text-muted-2" />
-                    <span className="truncate">{block.filename || 'Download file'}</span>
-                  </a>
+                    src={block.url}
+                    alt={block.filename || 'Generated image'}
+                    loading="lazy"
+                    className="w-full rounded-xl border border-line-soft object-cover"
+                  />
+                );
+              }
+              if (block.type === 'video') {
+                return <video key={i} src={block.url} controls className="w-full rounded-xl border border-line-soft" />;
+              }
+              return (
+                <a
+                  key={i}
+                  href={block.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 rounded-xl border border-line-soft bg-paper px-3 py-2 text-sm font-medium text-ink-2 transition-colors hover:border-ink"
+                >
+                  <FileText className="h-4 w-4 flex-none text-muted-2" />
+                  <span className="truncate">{block.filename || 'Download file'}</span>
+                </a>
+              );
+            })}
+          </div>
+        ) : null}
+
+        {message.plan && message.plan.length > 0 ? (
+          <div className="rounded-xl border border-line bg-paper/60 p-3">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-bold uppercase tracking-[0.12em] text-muted-2">Task plan</p>
+              {typeof message.stepCompleted === 'number' && message.stepTotal ? (
+                <span className="text-xs font-semibold text-muted-2">
+                  {message.stepCompleted}/{message.stepTotal}
+                </span>
+              ) : null}
+            </div>
+            <ol className="mt-2 space-y-1.5">
+              {message.plan.map((step, i) => {
+                const done = typeof message.stepCompleted === 'number' && i < message.stepCompleted;
+                const active = typeof message.stepCompleted === 'number' && i === message.stepCompleted;
+                return (
+                  <li key={i} className="flex items-start gap-2">
+                    <span
+                      className={cn(
+                        'mt-0.5 flex h-4 w-4 flex-none items-center justify-center rounded-full text-micro font-bold',
+                        done ? 'bg-ink text-surface' : active ? 'bg-orange/20 text-orange-ink' : 'bg-line-soft text-muted-2',
+                      )}
+                    >
+                      {done ? <Check className="h-3 w-3" /> : i + 1}
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm font-semibold text-ink-2">{step.skill_name}</span>
+                      {step.task ? <span className="block truncate text-xs text-muted-2">{step.task}</span> : null}
+                    </span>
+                  </li>
                 );
               })}
-            </div>
-          ) : null}
+            </ol>
+          </div>
+        ) : null}
 
-          {message.plan && message.plan.length > 0 ? (
-            <div className="mt-3 rounded-xl border border-line bg-paper/60 p-3">
-              <div className="flex items-center justify-between">
-                <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-muted-2">Task plan</p>
-                {typeof message.stepCompleted === 'number' && message.stepTotal ? (
-                  <span className="text-[11px] font-semibold text-muted-2">
-                    {message.stepCompleted}/{message.stepTotal}
-                  </span>
-                ) : null}
-              </div>
-              <ol className="mt-2 space-y-1.5">
-                {message.plan.map((step, i) => {
-                  const done = typeof message.stepCompleted === 'number' && i < message.stepCompleted;
-                  const active = typeof message.stepCompleted === 'number' && i === message.stepCompleted;
-                  return (
-                    <li key={i} className="flex items-start gap-2">
-                      <span
-                        className={cn(
-                          'mt-0.5 flex h-4 w-4 flex-none items-center justify-center rounded-full text-[10px] font-bold',
-                          done ? 'bg-ink text-surface' : active ? 'bg-orange/20 text-orange-deep' : 'bg-line-soft text-muted-2',
-                        )}
-                      >
-                        {done ? <Check className="h-3 w-3" /> : i + 1}
-                      </span>
-                      <span className="min-w-0">
-                        <span className="block truncate text-[13px] font-semibold text-ink-2">{step.skill_name}</span>
-                        {step.task ? <span className="block truncate text-[12px] text-muted-2">{step.task}</span> : null}
-                      </span>
-                    </li>
-                  );
-                })}
-              </ol>
+        {message.confirm ? (
+          <div className="rounded-xl border border-orange/30 bg-orange/[0.06] p-3">
+            <p className="text-sm font-semibold text-ink">{message.confirm.question}</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {message.confirm.options.map((opt) => (
+                <button
+                  key={opt}
+                  type="button"
+                  disabled={message.streaming || disabled}
+                  onClick={() => onConfirmSelect(opt)}
+                  className="min-h-9 rounded-full border border-line bg-surface px-3 py-1.5 text-sm font-medium text-ink-2 transition-colors hover:border-ink hover:text-ink disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  {opt}
+                </button>
+              ))}
             </div>
-          ) : null}
+          </div>
+        ) : null}
 
-          {message.confirm ? (
-            <div className="mt-3 rounded-xl border border-orange/30 bg-orange/[0.06] p-3">
-              <p className="text-[13px] font-semibold text-ink">{message.confirm.question}</p>
-              <div className="mt-2 flex flex-wrap gap-2">
-                {message.confirm.options.map((opt) => (
-                  <button
-                    key={opt}
-                    type="button"
-                    disabled={message.streaming || disabled}
-                    onClick={() => onConfirmSelect(opt)}
-                    className="rounded-full border border-line bg-surface px-3 py-1.5 text-[13px] font-medium text-ink-2 transition-colors hover:border-ink hover:text-ink disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    {opt}
-                  </button>
-                ))}
-              </div>
-            </div>
-          ) : null}
-
-          {message.streaming && message.content ? <span className="stream-cursor" /> : null}
-        </div>
+        {message.streaming && message.content ? <span className="stream-cursor" /> : null}
       </div>
     </div>
   );

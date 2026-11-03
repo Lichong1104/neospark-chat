@@ -13,7 +13,7 @@ export interface Skill {
 }
 
 /** Top-level screens the sidebar can switch between. */
-export type View = 'chat' | 'pricing' | 'balance' | 'subscription' | 'user' | 'skills' | 'api-keys';
+export type View = 'chat' | 'pricing' | 'balance' | 'subscription' | 'docs' | 'skill-store' | 'user' | 'skills' | 'api-keys';
 
 export interface ApiKeyItem {
   id: number;

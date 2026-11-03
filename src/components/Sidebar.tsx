@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { ChevronDown, Coins, CreditCard, Loader2, MessageSquare, PanelLeftClose, PanelLeftOpen, Pin, Plus, Tag, Trash2 } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { BookOpen, ChevronDown, Coins, CreditCard, Loader2, MessageSquare, PanelLeftClose, PanelLeftOpen, Pin, Plus, Store, Tag, Trash2, X } from 'lucide-react';
 import type { Session, View } from '../types';
 import { cn } from '../lib/utils';
 import UserMenu from './UserMenu';
@@ -16,6 +16,9 @@ interface SidebarProps {
   onNavigate: (view: View) => void;
   collapsed: boolean;
   onToggleCollapsed: () => void;
+  /** Below lg the sidebar is an off-canvas drawer. */
+  mobileOpen: boolean;
+  onCloseMobile: () => void;
 }
 
 function BrandMark() {
@@ -50,10 +53,32 @@ export default function Sidebar({
   onNavigate,
   collapsed,
   onToggleCollapsed,
+  mobileOpen,
+  onCloseMobile,
 }: SidebarProps) {
   const [groupCollapsed, setGroupCollapsed] = useState<Set<string>>(new Set());
   const [pendingDelete, setPendingDelete] = useState<{ id: string; title: string } | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [isDesktop, setIsDesktop] = useState(() => window.matchMedia('(min-width: 1024px)').matches);
+
+  // The collapse affordance is desktop-only; the drawer always shows full rows.
+  const compact = collapsed && isDesktop;
+
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1024px)');
+    const onChange = () => setIsDesktop(mq.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onCloseMobile();
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [mobileOpen, onCloseMobile]);
 
   const groups = useMemo(() => {
     const now = Date.now();
@@ -98,48 +123,78 @@ export default function Sidebar({
     { key: 'pricing', label: 'Pricing', icon: Tag },
     { key: 'balance', label: 'Balance & usage', icon: Coins },
     { key: 'subscription', label: 'Subscription', icon: CreditCard },
+    { key: 'docs', label: 'Docs', icon: BookOpen },
+    { key: 'skill-store', label: 'Skill Store', icon: Store },
   ] as const;
 
   return (
     <>
-      <aside className={cn('flex h-full flex-none flex-col border-r border-line bg-surface transition-[width] duration-200', collapsed ? 'w-[60px]' : 'w-72')}>
+      {mobileOpen && (
+        <button
+          type="button"
+          aria-label="Close menu"
+          className="fixed inset-0 z-40 bg-ink/40 backdrop-blur-sm lg:hidden"
+          onClick={onCloseMobile}
+        />
+      )}
+      <aside
+        aria-label="Conversations"
+        className={cn(
+          'fixed inset-y-0 left-0 z-50 flex h-full w-[min(18rem,85vw)] flex-none flex-col border-r border-line bg-surface shadow-panel transition-[width,transform] duration-200',
+          'lg:static lg:z-auto lg:w-72 lg:max-w-none lg:translate-x-0 lg:shadow-none',
+          mobileOpen ? 'translate-x-0' : '-translate-x-full',
+          compact && 'lg:w-[60px]',
+        )}
+      >
         {/* Brand + collapse */}
-        <div className={cn('flex items-center gap-2.5 px-4 pb-3 pt-5', collapsed && 'flex-col px-0')}>
+        <div className={cn('flex items-center gap-2.5 px-4 pb-3 pt-5', compact && 'flex-col px-0')}>
           <BrandMark />
-          {!collapsed && (
+          {!compact && (
             <div className="min-w-0 flex-1">
-              <div className="text-[15px] font-bold leading-tight tracking-tight">NeoSpark</div>
-              <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-2">Chat</div>
+              <div className="text-base font-bold leading-tight tracking-tight">NeoSpark</div>
+              <div className="text-micro font-bold uppercase tracking-[0.14em] text-muted-2">Chat</div>
             </div>
           )}
           <button
             type="button"
             onClick={onToggleCollapsed}
-            title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            className={cn('rounded-lg p-1.5 text-muted-2 transition-colors hover:bg-line-soft hover:text-ink', collapsed && 'mt-1')}
+            title={compact ? 'Expand sidebar' : 'Collapse sidebar'}
+            aria-label={compact ? 'Expand sidebar' : 'Collapse sidebar'}
+            className={cn('hidden lg:flex', 'icon-btn', compact && 'mt-1')}
           >
-            {collapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
+            {compact ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
+          </button>
+          <button
+            type="button"
+            onClick={onCloseMobile}
+            aria-label="Close menu"
+            className="icon-btn ml-auto lg:hidden"
+          >
+            <X className="h-4 w-4" />
           </button>
         </div>
 
         {/* New chat */}
-        <div className={cn('px-3 pb-3', collapsed && 'px-2')}>
+        <div className={cn('px-3 pb-3', compact && 'px-2')}>
           <button
             type="button"
-            onClick={onNewChat}
-            title={collapsed ? 'New chat' : undefined}
+            onClick={() => {
+              onNewChat();
+              onCloseMobile();
+            }}
+            title={compact ? 'New chat' : undefined}
             className={cn(
-              'flex w-full items-center justify-center gap-2 rounded-full bg-ink py-2.5 text-sm font-semibold text-surface shadow-[0_1px_2px_rgba(10,10,10,.16),0_10px_22px_-10px_rgba(10,10,10,.5)] transition-transform duration-200 hover:-translate-y-0.5',
-              collapsed && 'px-0',
+              'flex min-h-10 w-full items-center justify-center gap-2 rounded-full bg-ink px-4 py-2.5 text-sm font-semibold text-surface shadow-[0_1px_2px_rgba(10,10,10,.16),0_10px_22px_-10px_rgba(10,10,10,.5)] transition-transform duration-200 hover:-translate-y-0.5',
+              compact && 'px-0',
             )}
           >
             <Plus className="h-4 w-4" />
-            {!collapsed && 'New chat'}
+            {!compact && 'New chat'}
           </button>
         </div>
 
         {/* Nav: pricing / balance */}
-        <div className={cn('space-y-0.5 px-3 pb-3', collapsed && 'px-2')}>
+        <div className={cn('space-y-0.5 px-3 pb-3', compact && 'px-2')}>
           {navItems.map((item) => {
             const Icon = item.icon;
             const active = view === item.key;
@@ -147,23 +202,27 @@ export default function Sidebar({
               <button
                 key={item.key}
                 type="button"
-                onClick={() => onNavigate(item.key)}
-                title={collapsed ? item.label : undefined}
+                onClick={() => {
+                  onNavigate(item.key);
+                  onCloseMobile();
+                }}
+                aria-current={active ? 'page' : undefined}
+                title={compact ? item.label : undefined}
                 className={cn(
-                  'flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-[13px] font-semibold transition-colors',
+                  'flex min-h-10 w-full items-center gap-2.5 rounded-xl px-2.5 py-2.5 text-left text-sm font-semibold transition-colors',
                   active ? 'bg-line-soft text-ink' : 'text-ink-2 hover:bg-paper',
-                  collapsed && 'justify-center px-0',
+                  compact && 'justify-center px-0',
                 )}
               >
                 <Icon className="h-4 w-4 flex-none" />
-                {!collapsed && item.label}
+                {!compact && item.label}
               </button>
             );
           })}
         </div>
 
         {/* Collapsed history: an icon that reveals the list on hover */}
-        {collapsed && (
+        {compact && (
           <div className="group relative px-2 pb-3">
             <button
               type="button"
@@ -173,9 +232,9 @@ export default function Sidebar({
               <MessageSquare className="h-4 w-4" />
             </button>
             <div className="invisible absolute left-full top-0 z-40 ml-1 max-h-[70vh] w-64 overflow-y-auto rounded-xl border border-line bg-surface p-1.5 shadow-panel opacity-0 transition-opacity group-hover:visible group-hover:opacity-100">
-              <p className="px-2 py-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-muted-2">History</p>
+              <p className="px-2 py-1.5 text-micro font-bold uppercase tracking-[0.14em] text-muted-2">History</p>
               {sessions.length === 0 ? (
-                <p className="px-2 py-2 text-[13px] text-muted-2">No conversations yet.</p>
+                <p className="px-2 py-2 text-sm text-muted-2">No conversations yet.</p>
               ) : (
                 sessions.map((s) => (
                   <button
@@ -191,7 +250,7 @@ export default function Sidebar({
                     )}
                   >
                     <MessageSquare className="h-3.5 w-3.5 flex-none text-muted-2" />
-                    <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-ink-2">
+                    <span className="min-w-0 flex-1 truncate text-sm font-medium text-ink-2">
                       {s.title || 'New chat'}
                     </span>
                   </button>
@@ -202,16 +261,16 @@ export default function Sidebar({
         )}
 
         {/* History */}
-        {!collapsed && (
+        {!compact && (
           <div className="flex-1 overflow-y-auto px-3 pb-3">
             <div className="pt-2">
-              <div className="px-1 pb-2.5 text-[10px] font-bold uppercase tracking-[0.14em] text-muted-2">History</div>
+              <div className="px-1 pb-2.5 text-micro font-bold uppercase tracking-[0.14em] text-muted-2">History</div>
               {loadingSessions ? (
                 <div className="flex items-center justify-center py-4">
                   <Loader2 className="h-4 w-4 animate-spin text-muted-2" />
                 </div>
               ) : sessions.length === 0 ? (
-                <p className="px-1 py-2 text-[13px] text-muted-2">No conversations yet.</p>
+                <p className="px-1 py-2 text-sm text-muted-2">No conversations yet.</p>
               ) : (
                 groups
                   .filter((g) => g.items.length > 0)
@@ -222,7 +281,7 @@ export default function Sidebar({
                         <button
                           type="button"
                           onClick={() => toggleGroup(group.key)}
-                          className="flex w-full items-center justify-between gap-2 rounded-lg px-1 py-1.5 text-left text-[10px] font-bold uppercase tracking-[0.14em] text-muted-2 transition-colors hover:text-ink"
+                          className="flex w-full items-center justify-between gap-2 rounded-lg px-1 py-1.5 text-left text-micro font-bold uppercase tracking-[0.14em] text-muted-2 transition-colors hover:text-ink"
                         >
                           <span>
                             {group.label} · {group.items.length}
@@ -245,15 +304,16 @@ export default function Sidebar({
                                     onClick={() => {
                                       onNavigate('chat');
                                       onSelectSession(s.id);
+                                      onCloseMobile();
                                     }}
-                                    className="flex min-w-0 flex-1 items-center gap-2.5 rounded-lg px-1 py-0.5 text-left"
+                                    className="flex min-h-10 min-w-0 flex-1 items-center gap-2.5 rounded-lg px-1 py-0.5 text-left"
                                   >
                                     <MessageSquare className={cn('h-3.5 w-3.5 flex-none', s.id === activeId ? 'text-ink' : 'text-muted-2')} />
                                     <span className="min-w-0 flex-1">
-                                      <span className={cn('block truncate text-[13px] font-medium', s.id === activeId ? 'text-ink' : 'text-ink-2')}>
+                                      <span className={cn('block truncate text-sm font-medium', s.id === activeId ? 'text-ink' : 'text-ink-2')}>
                                         {s.title || 'New chat'}
                                       </span>
-                                      <span className="block text-[11px] text-muted-2">{timeAgo(s.updatedAt)}</span>
+                                      <span className="block text-xs text-muted-2">{timeAgo(s.updatedAt)}</span>
                                     </span>
                                   </button>
                                   <button
@@ -262,8 +322,8 @@ export default function Sidebar({
                                     title={s.pinned ? 'Unpin' : 'Pin'}
                                     aria-label={s.pinned ? 'Unpin' : 'Pin'}
                                     className={cn(
-                                      'flex-none rounded-md p-1.5 transition-all hover:bg-line-soft',
-                                      s.pinned ? 'text-orange-deep opacity-100' : 'text-muted-2 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 hover:text-ink',
+                                      'flex h-9 w-9 flex-none items-center justify-center rounded-lg transition-colors hover:bg-line-soft hover:text-ink',
+                                      s.pinned ? 'text-orange-ink' : 'hover-reveal text-muted-2',
                                     )}
                                   >
                                     <Pin className="h-3.5 w-3.5" />
@@ -274,7 +334,10 @@ export default function Sidebar({
                                     disabled={deletingId === s.id}
                                     title="Delete conversation"
                                     aria-label="Delete conversation"
-                                    className="flex-none rounded-md p-1.5 text-muted-2 opacity-0 transition-all hover:bg-line-soft hover:text-ink focus-visible:opacity-100 group-hover:opacity-100 disabled:opacity-100"
+                                    className={cn(
+                                      'flex h-9 w-9 flex-none items-center justify-center rounded-lg text-muted-2 transition-colors hover:bg-line-soft hover:text-danger disabled:opacity-100',
+                                      deletingId !== s.id && 'hover-reveal',
+                                    )}
                                   >
                                     {deletingId === s.id ? (
                                       <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -296,8 +359,8 @@ export default function Sidebar({
         )}
 
         {/* User footer: one click opens User / Skill / API Key / Sign out */}
-        <div className={cn('mt-auto border-t border-line-soft px-3 py-3', collapsed && 'px-2')}>
-          <UserMenu collapsed={collapsed} onNavigate={onNavigate} />
+        <div className={cn('mt-auto border-t border-line-soft px-3 py-3', compact && 'px-2')}>
+          <UserMenu collapsed={compact} onNavigate={onNavigate} />
         </div>
       </aside>
 
@@ -308,20 +371,20 @@ export default function Sidebar({
           <div className="relative w-full max-w-xs rounded-2xl bg-surface p-6 shadow-panel" role="dialog" aria-modal="true" aria-labelledby="delete-title">
             <h3 id="delete-title" className="text-base font-bold tracking-tight">Delete this conversation?</h3>
             <p className="mt-1.5 text-sm leading-relaxed text-muted">
-              「{pendingDelete.title}」 and all its messages will be permanently deleted and cannot be recovered.
+              “{pendingDelete.title}” and all its messages will be permanently deleted and cannot be recovered.
             </p>
             <div className="mt-5 flex justify-end gap-2">
               <button
                 type="button"
                 onClick={() => setPendingDelete(null)}
-                className="rounded-full px-4 py-2 text-sm font-semibold text-muted transition-colors hover:text-ink"
+                className="min-h-10 rounded-full px-4 py-2 text-sm font-semibold text-muted transition-colors hover:text-ink"
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={confirmDelete}
-                className="rounded-full bg-ink px-4 py-2 text-sm font-semibold text-surface shadow-[0_1px_2px_rgba(10,10,10,.16),0_10px_22px_-10px_rgba(10,10,10,.5)] transition-transform duration-200 hover:-translate-y-0.5"
+                className="min-h-10 rounded-full bg-ink px-4 py-2 text-sm font-semibold text-surface shadow-[0_1px_2px_rgba(10,10,10,.16),0_10px_22px_-10px_rgba(10,10,10,.5)] transition-transform duration-200 hover:-translate-y-0.5"
               >
                 Delete
               </button>

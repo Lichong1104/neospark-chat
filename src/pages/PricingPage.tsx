@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { ArrowLeft, Check, CreditCard } from 'lucide-react';
+import { Check, CreditCard } from 'lucide-react';
+import PageShell from '../components/PageShell';
 import { useAuth } from '../auth/AuthContext';
 import { createCheckout, getBillingPortal, getBillingState } from '../lib/api';
 import type { BillingState } from '../types';
@@ -20,7 +21,7 @@ const PLANS: Plan[] = [
     name: 'Starter',
     monthly: 18,
     yearly: 168,
-    blurb: 'Perfect for beginners · 2,000 credits/month',
+    blurb: 'For a few Skill runs each month.',
     features: ['2,000 credits every month', 'All Skills in the catalogue', 'Standard image quality'],
   },
   {
@@ -28,7 +29,7 @@ const PLANS: Plan[] = [
     name: 'Growth',
     monthly: 31,
     yearly: 300,
-    blurb: 'Best value for creators · 3,500 credits/month',
+    blurb: 'For steady weekly creation.',
     features: ['3,500 credits every month', 'Higher resolution renders', 'Priority queue'],
   },
   {
@@ -36,7 +37,7 @@ const PLANS: Plan[] = [
     name: 'Pro',
     monthly: 68,
     yearly: 528,
-    blurb: 'For professional creators · 11,000 credits/month',
+    blurb: 'For client work and 4K output.',
     features: ['11,000 credits every month', '4K renders', 'Video Skills included'],
   },
   {
@@ -44,12 +45,12 @@ const PLANS: Plan[] = [
     name: 'Ultimate',
     monthly: 148,
     yearly: 1176,
-    blurb: 'For teams & studios · 27,000 credits/month',
+    blurb: 'For studios running jobs in parallel.',
     features: ['27,000 credits every month', 'Fastest queue', 'Early access to new Skills'],
   },
 ];
 
-export default function PricingPage({ onBack }: { onBack: () => void }) {
+export default function PricingPage({ onBack, onOpenNav }: { onBack: () => void; onOpenNav: () => void }) {
   const { user, openLogin } = useAuth();
   const [interval, setInterval] = useState<'monthly' | 'yearly'>('monthly');
   const [billing, setBilling] = useState<BillingState | null>(null);
@@ -90,26 +91,11 @@ export default function PricingPage({ onBack }: { onBack: () => void }) {
   const sub = billing?.subscription;
 
   return (
-    <main className="flex h-full min-w-0 flex-1 flex-col overflow-y-auto">
-      <header className="flex items-center gap-3 border-b border-line bg-surface/70 px-6 py-3 backdrop-blur">
-        <button
-          type="button"
-          onClick={onBack}
-          className="flex items-center gap-1.5 rounded-lg px-2 py-1 text-sm font-semibold text-muted transition-colors hover:text-ink"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to chat
-        </button>
-        <div className="min-w-0 flex-1">
-          <div className="truncate text-sm font-bold tracking-tight">Pricing</div>
-        </div>
-      </header>
-
-      <div className="mx-auto w-full max-w-5xl px-6 py-10">
+    <PageShell title="Pricing" onBack={onBack} onOpenNav={onOpenNav} width="wide">
         <div className="text-center">
-          <h1 className="text-[1.75rem] font-bold tracking-[-0.03em]">Choose a plan</h1>
-          <p className="mx-auto mt-2 max-w-md text-[15px] text-muted">
-            Credits power every image, video and Skill run. Pick a monthly or yearly plan — cancel anytime.
+          <h1 className="text-3xl font-bold tracking-[-0.03em]">Choose a plan</h1>
+          <p className="mx-auto mt-2 max-w-md text-base text-muted">
+            Credits power every image, video and Skill run. Pick monthly or yearly. Cancel anytime.
           </p>
 
           <div className="mt-6 inline-flex rounded-full border border-line bg-surface p-1">
@@ -119,7 +105,7 @@ export default function PricingPage({ onBack }: { onBack: () => void }) {
                 type="button"
                 onClick={() => setInterval(k)}
                 className={cn(
-                  'rounded-full px-5 py-1.5 text-sm font-semibold transition-colors',
+                  'min-h-9 rounded-full px-5 py-1.5 text-sm font-semibold transition-colors',
                   interval === k ? 'bg-ink text-surface' : 'text-muted hover:text-ink',
                 )}
               >
@@ -132,12 +118,12 @@ export default function PricingPage({ onBack }: { onBack: () => void }) {
         {sub && sub.status === 'active' && (
           <div className="mt-6 flex items-center justify-between gap-4 rounded-2xl border border-line bg-surface p-4 shadow-card">
             <div className="flex items-center gap-3">
-              <CreditCard className="h-5 w-5 text-orange-deep" />
+              <CreditCard className="h-5 w-5 text-orange-ink" />
               <div>
                 <div className="text-sm font-semibold capitalize">
                   {sub.planKey} · {sub.billingInterval}
                 </div>
-                <div className="text-[12px] text-muted-2">
+                <div className="text-xs text-muted-2">
                   {sub.cancelAtPeriodEnd ? 'Cancels at period end' : 'Active subscription'}
                 </div>
               </div>
@@ -153,7 +139,7 @@ export default function PricingPage({ onBack }: { onBack: () => void }) {
           </div>
         )}
 
-        <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {PLANS.map((plan) => {
             const price = interval === 'monthly' ? plan.monthly : plan.yearly;
             return (
@@ -161,16 +147,16 @@ export default function PricingPage({ onBack }: { onBack: () => void }) {
                 key={plan.key}
                 className="flex flex-col rounded-2xl border border-line bg-surface p-5 shadow-card"
               >
-                <div className="text-[15px] font-bold tracking-tight">{plan.name}</div>
+                <div className="text-base font-bold tracking-tight">{plan.name}</div>
                 <div className="mt-3 flex items-baseline gap-1">
-                  <span className="text-[1.75rem] font-bold tracking-[-0.03em]">${price}</span>
-                  <span className="text-[13px] text-muted-2">/ {interval === 'monthly' ? 'mo' : 'yr'}</span>
+                  <span className="text-3xl font-bold tracking-[-0.03em]">${price}</span>
+                  <span className="text-sm text-muted-2">/ {interval === 'monthly' ? 'mo' : 'yr'}</span>
                 </div>
-                <p className="mt-2 text-[13px] leading-relaxed text-muted">{plan.blurb}</p>
+                <p className="mt-2 text-sm leading-relaxed text-muted">{plan.blurb}</p>
                 <ul className="mt-4 flex-1 space-y-2">
                   {plan.features.map((f) => (
-                    <li key={f} className="flex items-start gap-2 text-[13px] text-ink-2">
-                      <Check className="mt-0.5 h-3.5 w-3.5 flex-none text-orange-deep" />
+                    <li key={f} className="flex items-start gap-2 text-sm text-ink-2">
+                      <Check className="mt-0.5 h-3.5 w-3.5 flex-none text-orange-ink" />
                       {f}
                     </li>
                   ))}
@@ -181,7 +167,7 @@ export default function PricingPage({ onBack }: { onBack: () => void }) {
                     void subscribe(plan.key).catch(() => {});
                   }}
                   disabled={busy === plan.key}
-                  className="mt-5 w-full rounded-full bg-ink py-2.5 text-sm font-semibold text-surface shadow-[0_1px_2px_rgba(10,10,10,.16),0_10px_22px_-10px_rgba(10,10,10,.5)] transition-transform duration-200 hover:-translate-y-0.5 disabled:translate-y-0 disabled:opacity-40"
+                  className="mt-5 min-h-10 w-full rounded-full bg-ink py-2.5 text-sm font-semibold text-surface shadow-[0_1px_2px_rgba(10,10,10,.16),0_10px_22px_-10px_rgba(10,10,10,.5)] transition-transform duration-200 hover:-translate-y-0.5 disabled:translate-y-0 disabled:opacity-40"
                 >
                   {sub?.planKey === plan.key ? 'Current plan' : busy === plan.key ? 'Redirecting…' : 'Subscribe'}
                 </button>
@@ -189,7 +175,6 @@ export default function PricingPage({ onBack }: { onBack: () => void }) {
             );
           })}
         </div>
-      </div>
-    </main>
+    </PageShell>
   );
 }

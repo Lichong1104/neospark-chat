@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowUp, Check, ChevronDown, FileText, Loader2, Paperclip, Search, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, Check, ChevronDown, FileText, Loader2, Menu, Paperclip, Plus, Search, Sparkles, X } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Attachment, Message as ChatMessage, ModelOption, Skill } from '../types';
 import { Message } from './Message';
@@ -27,6 +27,7 @@ interface ChatAreaProps {
   onModelChange: (id: string) => void;
   /** Bumped whenever the conversation changes (new chat / switch / delete). */
   composerKey: number;
+  onOpenNav: () => void;
 }
 
 const SUGGESTIONS = [
@@ -38,6 +39,52 @@ const SUGGESTIONS = [
 type SlashItem =
   | { kind: 'skill'; id: string; name: string; description: string; emoji: string; active: boolean }
   | { kind: 'attachment'; id: string; name: string; url: string; mediaType: 'image' | 'video' | 'file' };
+
+/* Brand marks for the model providers, keyed by the id prefix before ":". */
+function GeminiMark({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
+      <defs>
+        <linearGradient id="model-icon-gemini" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stopColor="#4387fd" />
+          <stop offset="1" stopColor="#9b72cb" />
+        </linearGradient>
+      </defs>
+      <path
+        fill="url(#model-icon-gemini)"
+        d="M12 0c.9 6.6 4.8 10.8 12 12-7.2 1.2-11.1 5.4-12 12-.9-6.6-4.8-10.8-12-12C7.2 10.8 11.1 6.6 12 0z"
+      />
+    </svg>
+  );
+}
+
+function OpenAiMark({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="#0a0a0a" strokeWidth="1.7" aria-hidden="true">
+      <ellipse cx="12" cy="12" rx="9.2" ry="3.7" />
+      <ellipse cx="12" cy="12" rx="9.2" ry="3.7" transform="rotate(60 12 12)" />
+      <ellipse cx="12" cy="12" rx="9.2" ry="3.7" transform="rotate(120 12 12)" />
+    </svg>
+  );
+}
+
+function ClaudeMark({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="#d97757" aria-hidden="true">
+      <rect x="10.1" y="2.5" width="3.8" height="19" rx="1.9" />
+      <rect x="10.1" y="2.5" width="3.8" height="19" rx="1.9" transform="rotate(60 12 12)" />
+      <rect x="10.1" y="2.5" width="3.8" height="19" rx="1.9" transform="rotate(120 12 12)" />
+    </svg>
+  );
+}
+
+function ModelIcon({ modelId, className }: { modelId: string; className?: string }) {
+  const provider = modelId.split(':')[0];
+  if (provider === 'gemini') return <GeminiMark className={className} />;
+  if (provider === 'openai') return <OpenAiMark className={className} />;
+  if (provider === 'anthropic') return <ClaudeMark className={className} />;
+  return <Sparkles className={className} />;
+}
 
 export default function ChatArea({
   title,
@@ -58,6 +105,7 @@ export default function ChatArea({
   model,
   onModelChange,
   composerKey,
+  onOpenNav,
 }: ChatAreaProps) {
   const listRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<HTMLDivElement>(null);
@@ -89,8 +137,35 @@ export default function ChatArea({
     dragDepth.current = 0;
   }, [composerKey]);
 
+  // Follow the stream only while the reader is parked at the bottom. Scrolling
+  // up to reread output should not be yanked back down by the next chunk.
+  const [atBottom, setAtBottom] = useState(true);
+  const atBottomRef = useRef(true);
+  const firstMessageIdRef = useRef<string | null>(null);
+
+  const jumpToBottom = (smooth = false) => {
+    const el = listRef.current;
+    if (!el) return;
+    atBottomRef.current = true;
+    setAtBottom(true);
+    el.scrollTo({ top: el.scrollHeight, behavior: smooth ? 'smooth' : 'auto' });
+  };
+
+  const handleListScroll = () => {
+    const el = listRef.current;
+    if (!el) return;
+    const near = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+    atBottomRef.current = near;
+    setAtBottom(near);
+  };
+
   useEffect(() => {
-    listRef.current?.scrollTo({ top: listRef.current.scrollHeight });
+    const el = listRef.current;
+    if (!el) return;
+    const firstId = messages[0]?.id ?? null;
+    const conversationChanged = firstId !== firstMessageIdRef.current;
+    firstMessageIdRef.current = firstId;
+    if (conversationChanged || atBottomRef.current) el.scrollTop = el.scrollHeight;
   }, [messages]);
 
   // Keep the uncontrolled contentEditable in sync with the draft state.
@@ -290,6 +365,8 @@ export default function ChatArea({
       onRequestLogin();
       return;
     }
+    atBottomRef.current = true;
+    setAtBottom(true);
     onSend(text, attachments);
     setAttachments([]);
     if (editorRef.current) editorRef.current.innerText = '';
@@ -405,61 +482,83 @@ export default function ChatArea({
     >
       {dragActive && (
         <div className="pointer-events-none absolute inset-0 z-40 flex items-center justify-center bg-surface/80 backdrop-blur-sm">
-          <div className="rounded-2xl border-2 border-dashed border-orange-deep bg-surface px-6 py-4 text-sm font-semibold text-orange-deep shadow-panel">
+          <div className="rounded-2xl border-2 border-dashed border-orange-ink bg-surface px-6 py-4 text-sm font-semibold text-orange-ink shadow-panel">
             Drop files to attach
           </div>
         </div>
       )}
       {/* Header */}
-      <header className="flex items-center gap-3 border-b border-line bg-surface/70 px-6 py-3 backdrop-blur">
-        <div className="min-w-0 flex-1">
-          <div className="truncate text-sm font-bold tracking-tight">{title || 'New chat'}</div>
-          <div className="truncate text-[12px] text-muted-2">{contextLabel || 'Select a skill to start'}</div>
+      <header className="border-b border-line bg-surface/70 px-3 py-2.5 backdrop-blur sm:px-6 sm:py-3">
+        <div className="mx-auto flex w-full max-w-6xl items-center gap-1.5 sm:gap-3">
+          <button type="button" onClick={onOpenNav} aria-label="Open menu" className="icon-btn lg:hidden">
+            <Menu className="h-4 w-4" />
+          </button>
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-sm font-bold tracking-tight">{title || 'New chat'}</div>
+            <div className="truncate text-xs text-muted-2">{contextLabel || 'Select a skill to start'}</div>
+          </div>
         </div>
       </header>
 
       {/* Messages */}
-      <div ref={listRef} className="flex-1 overflow-y-auto px-6 py-8">
-        {loadingHistory ? (
-          <div className="flex h-full items-center justify-center">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-2" />
-          </div>
-        ) : messages.length === 0 ? (
-          <div className="mx-auto flex max-w-2xl flex-col items-center pt-[10vh] text-center">
-            <Eyebrow>NeoSpark Conversation</Eyebrow>
-            <h1 className="mt-6 text-[2rem] font-bold leading-[1.15] tracking-[-0.03em]">
-              One conversation, all your Skills
-            </h1>
-            <p className="mt-3 max-w-md text-[15px] leading-relaxed text-muted">
-              Pick one or more skills and a model below the input, then describe the result you want.
-              Once connected, the skill's real output streams back here.
-            </p>
-            <div className="mt-8 flex flex-wrap justify-center gap-2">
-              {SUGGESTIONS.map((s) => (
-                <button
-                  key={s}
-                  type="button"
-                  onClick={() => (authenticated ? onSend(s, []) : onRequestLogin())}
-                  className="rounded-full border border-line bg-surface px-4 py-2 text-[13px] font-medium text-muted shadow-card transition-colors hover:border-ink hover:text-ink"
-                >
-                  {s}
-                </button>
+      <div className="relative min-h-0 flex-1">
+        <div
+          ref={listRef}
+          onScroll={handleListScroll}
+          aria-busy={streaming}
+          className="h-full overflow-y-auto px-4 py-6 sm:px-6 sm:py-8"
+        >
+          {loadingHistory ? (
+            <div className="flex h-full items-center justify-center">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-2" />
+            </div>
+          ) : messages.length === 0 ? (
+            <div className="mx-auto flex max-w-3xl flex-col items-center pt-[10vh] text-center">
+              <Eyebrow>NeoSpark Conversation</Eyebrow>
+              <h1 className="mt-6 text-2xl font-bold leading-[1.15] tracking-[-0.03em] sm:text-display">
+                One conversation, all your Skills
+              </h1>
+              <p className="mt-3 max-w-lg text-base leading-relaxed text-muted">
+                Pick one or more skills and a model below the input, then describe the result you want.
+                Once connected, the skill's real output streams back here.
+              </p>
+              <div className="mt-8 flex flex-wrap justify-center gap-2">
+                {SUGGESTIONS.map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => (authenticated ? onSend(s, []) : onRequestLogin())}
+                    className="min-h-10 rounded-full border border-line bg-surface px-4 py-2 text-sm font-medium text-muted shadow-card transition-colors hover:border-ink hover:text-ink"
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="mx-auto flex w-full max-w-6xl flex-col gap-5 sm:gap-6">
+              {messages.map((m) => (
+                <Message key={m.id} message={m} onConfirmSelect={onConfirmSelect} disabled={streaming} />
               ))}
             </div>
-          </div>
-        ) : (
-          <div className="mx-auto flex max-w-3xl flex-col gap-5">
-            {messages.map((m) => (
-              <Message key={m.id} message={m} onConfirmSelect={onConfirmSelect} disabled={streaming} />
-            ))}
-          </div>
+          )}
+        </div>
+        {!atBottom && (
+          <button
+            type="button"
+            onClick={() => jumpToBottom(true)}
+            className="absolute bottom-3 left-1/2 z-10 flex min-h-9 -translate-x-1/2 items-center gap-1.5 rounded-full border border-line bg-surface px-3.5 py-1.5 text-xs font-semibold text-ink shadow-panel"
+          >
+            <ArrowDown className="h-3.5 w-3.5" />
+            {streaming ? 'Jump to latest' : 'Jump to bottom'}
+          </button>
         )}
       </div>
 
       {/* Composer */}
-      <div className="border-t border-line bg-surface/70 px-6 py-4 backdrop-blur">
+      <div className="border-t border-line bg-surface/70 px-3 py-3 backdrop-blur sm:px-6 sm:py-4">
         {(attachments.length > 0 || uploading) && (
-          <div className="mx-auto mb-2 flex max-w-3xl flex-wrap gap-2">
+          <div className="mx-auto mb-2 flex w-full max-w-6xl flex-wrap gap-2">
             {attachments.map((a) => (
               <div
                 key={a.id}
@@ -472,11 +571,11 @@ export default function ChatArea({
                     <FileText className="h-4 w-4" />
                   </span>
                 )}
-                <span className="max-w-[160px] truncate text-[12px] font-medium text-ink-2">{a.name}</span>
+                <span className="max-w-[160px] truncate text-xs font-medium text-ink-2">{a.name}</span>
                 <button
                   type="button"
                   onClick={() => removeAttachment(a.id)}
-                  className="rounded-md p-1 text-muted-2 transition-colors hover:bg-line-soft hover:text-ink"
+                  className="flex h-8 w-8 flex-none items-center justify-center rounded-md text-muted-2 transition-colors hover:bg-line-soft hover:text-ink"
                   aria-label="Remove attachment"
                 >
                   <X className="h-3.5 w-3.5" />
@@ -484,35 +583,51 @@ export default function ChatArea({
               </div>
             ))}
             {uploading && (
-              <div className="flex items-center gap-2 rounded-xl border border-line bg-surface px-3 py-2 text-[12px] font-medium text-muted-2 shadow-card">
-                <Loader2 className="h-4 w-4 animate-spin text-orange-deep" />
+              <div className="flex items-center gap-2 rounded-xl border border-line bg-surface px-3 py-2 text-xs font-medium text-muted-2 shadow-card">
+                <Loader2 className="h-4 w-4 animate-spin text-orange-ink" />
                 Uploading…
               </div>
             )}
           </div>
         )}
 
-        <div className="mx-auto max-w-3xl">
-          {/* Skill + model row */}
-          <div className="mb-2 flex flex-wrap items-center gap-1.5">
-            {selectedSkills.map((id) => {
-              const skill = skills.find((s) => s.id === id);
-              if (!skill) return null;
-              return (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => onToggleSkill(id)}
-                  disabled={streaming}
-                  title={skill.description}
-                  className="flex items-center gap-1.5 rounded-full border border-ink bg-ink px-2.5 py-1 text-[12px] font-semibold text-surface transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <span className="text-[13px] leading-none">{skill.emoji}</span>
-                  {skill.name}
-                  <X className="h-3 w-3 opacity-70" />
-                </button>
-              );
-            })}
+        <div className="mx-auto w-full max-w-6xl">
+          {/* Selected skills */}
+          {selectedSkills.length > 0 && (
+            <div className="mb-2 flex flex-wrap items-center gap-1.5">
+              {selectedSkills.map((id) => {
+                const skill = skills.find((s) => s.id === id);
+                if (!skill) return null;
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => onToggleSkill(id)}
+                    disabled={streaming}
+                    title={skill.description}
+                    className="flex min-h-8 items-center gap-1.5 rounded-full border border-ink bg-ink px-2.5 py-1 text-xs font-semibold text-surface transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <span className="text-sm leading-none">{skill.emoji}</span>
+                    {skill.name}
+                    <X className="h-3 w-3 opacity-70" />
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Input shell */}
+          <div className="relative flex items-end gap-1.5 rounded-2xl border border-line bg-surface p-2 shadow-card transition-colors focus-within:border-ink">
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading || streaming}
+              className="flex h-10 w-10 flex-none items-center justify-center rounded-xl text-muted-2 transition-colors hover:bg-line-soft hover:text-ink disabled:cursor-not-allowed disabled:opacity-40"
+              aria-label="Add attachment"
+              title="Add attachment"
+            >
+              <Paperclip className="h-4 w-4" />
+            </button>
             <button
               type="button"
               onClick={() => {
@@ -523,20 +638,44 @@ export default function ChatArea({
               }}
               disabled={streaming}
               title="Select a skill"
-              className="flex items-center gap-1 rounded-full border border-dashed border-line px-2.5 py-1 text-[12px] font-semibold text-muted transition-colors hover:border-ink hover:text-ink disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex h-10 flex-none items-center gap-1 rounded-xl px-2.5 text-sm font-semibold text-muted-2 transition-colors hover:bg-line-soft hover:text-ink disabled:cursor-not-allowed disabled:opacity-40"
             >
-              <span className="text-[13px] leading-none">+</span>
+              <Plus className="h-4 w-4" />
               Skill
             </button>
-            <div className="relative ml-auto" ref={modelRef}>
+            <div className="relative min-w-0 flex-1">
+              {!draft && !streaming && (
+                <span
+                  className={cn(
+                    'pointer-events-none absolute left-2 text-base leading-relaxed text-muted-2',
+                    authenticated ? 'top-1.5' : 'bottom-1.5',
+                  )}
+                >
+                  {authenticated ? 'Message NeoSpark… use @ to mention a skill or file' : 'Sign in to start chatting…'}
+                </span>
+              )}
+              <div
+                ref={editorRef}
+                contentEditable={!streaming}
+                suppressContentEditableWarning
+                onInput={handleEditorInput}
+                onKeyDown={handleKeyDown}
+                className={cn(
+                  'max-h-56 min-h-36 overflow-y-auto whitespace-pre-wrap break-words px-2 py-1.5 text-base leading-relaxed outline-none sm:max-h-72',
+                  streaming && 'cursor-not-allowed opacity-60',
+                )}
+              />
+            </div>
+            <div className="relative flex-none" ref={modelRef}>
               <button
                 type="button"
                 onClick={() => setModelOpen((v) => !v)}
                 disabled={streaming}
-                className="flex items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1 text-[12px] font-semibold text-ink-2 transition-colors hover:border-ink disabled:cursor-not-allowed disabled:opacity-50"
+                className="flex h-10 items-center gap-1.5 rounded-xl px-2.5 text-sm font-semibold text-muted-2 transition-colors hover:bg-line-soft hover:text-ink disabled:cursor-not-allowed disabled:opacity-40"
               >
+                <ModelIcon modelId={model} className="h-4 w-4 flex-none" />
                 {modelLabel}
-                <ChevronDown className={cn('h-3.5 w-3.5 text-muted-2 transition-transform', modelOpen && 'rotate-180')} />
+                <ChevronDown className={cn('h-3.5 w-3.5 transition-transform', modelOpen && 'rotate-180')} />
               </button>
               {modelOpen && (
                 <div className="absolute bottom-full right-0 z-30 mb-1 w-52 overflow-hidden rounded-xl border border-line bg-surface p-1 shadow-panel">
@@ -549,55 +688,26 @@ export default function ChatArea({
                         setModelOpen(false);
                       }}
                       className={cn(
-                        'flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-left text-[13px] font-semibold transition-colors',
+                        'flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-left text-sm font-semibold transition-colors',
                         model === m.id ? 'bg-line-soft text-ink' : 'text-ink-2 hover:bg-paper',
                       )}
                     >
-                      {m.label}
-                      {model === m.id && <Check className="h-3.5 w-3.5 flex-none text-orange-deep" />}
+                      <span className="flex min-w-0 items-center gap-2">
+                        <ModelIcon modelId={m.id} className="h-4 w-4 flex-none" />
+                        {m.label}
+                      </span>
+                      {model === m.id && <Check className="h-3.5 w-3.5 flex-none text-orange-ink" />}
                     </button>
                   ))}
                 </div>
               )}
-            </div>
-          </div>
-
-          {/* Input shell */}
-          <div className="relative flex items-end gap-1.5 rounded-2xl border border-line bg-surface p-2 shadow-card">
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploading || streaming}
-              className="flex h-9 w-9 flex-none items-center justify-center rounded-xl text-muted-2 transition-colors hover:bg-line-soft hover:text-ink disabled:cursor-not-allowed disabled:opacity-40"
-              aria-label="Add attachment"
-              title="Add attachment"
-            >
-              <Paperclip className="h-4 w-4" />
-            </button>
-            <div className="relative min-w-0 flex-1">
-              {!draft && !streaming && (
-                <span className="pointer-events-none absolute left-2 top-1.5 text-[0.95rem] leading-relaxed text-muted-2">
-                  {authenticated ? 'Message NeoSpark… use @ to mention a skill or file' : 'Sign in to start chatting…'}
-                </span>
-              )}
-              <div
-                ref={editorRef}
-                contentEditable={!streaming}
-                suppressContentEditableWarning
-                onInput={handleEditorInput}
-                onKeyDown={handleKeyDown}
-                className={cn(
-                  'max-h-[180px] min-h-[24px] overflow-y-auto whitespace-pre-wrap break-words px-2 py-1.5 text-[0.95rem] leading-relaxed outline-none',
-                  streaming && 'cursor-not-allowed opacity-60',
-                )}
-              />
             </div>
             <button
               type="button"
               onClick={send}
               disabled={(!draft.trim() && attachments.length === 0) || streaming}
               aria-label="Send"
-              className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-ink text-surface shadow-[0_1px_2px_rgba(10,10,10,.3),0_8px_18px_-8px_rgba(10,10,10,.5)] transition-transform duration-200 hover:scale-105 disabled:scale-100 disabled:opacity-30"
+              className="flex h-10 w-10 flex-none items-center justify-center rounded-full bg-ink text-surface shadow-[0_1px_2px_rgba(10,10,10,.3),0_8px_18px_-8px_rgba(10,10,10,.5)] transition-transform duration-200 hover:scale-105 disabled:scale-100 disabled:opacity-30"
             >
               <ArrowUp className="h-4 w-4" />
             </button>
@@ -615,12 +725,12 @@ export default function ChatArea({
             {/* @ mention menu: skills (and, when typed "@", the attached files) */}
             {slashOpen && (
               <div ref={slashRef} className="absolute bottom-full left-0 right-0 z-30 mb-1 max-h-64 overflow-y-auto rounded-xl border border-line bg-surface p-1 shadow-panel">
-                <div className="flex items-center gap-2 px-2.5 py-2 text-[11px] font-bold uppercase tracking-[0.14em] text-muted-2">
+                <div className="flex items-center gap-2 px-2.5 py-2 text-xs font-bold uppercase tracking-[0.14em] text-muted-2">
                   <Search className="h-3.5 w-3.5" />
                   {mentionMode === 'select' ? 'Select a skill' : 'Mention a skill or file'}
                 </div>
                 {filteredItems.length === 0 ? (
-                  <p className="px-2.5 py-2 text-[13px] text-muted-2">Nothing matches.</p>
+                  <p className="px-2.5 py-2 text-sm text-muted-2">Nothing matches.</p>
                 ) : (
                   filteredItems.map((item, i) => {
                     const highlighted = i === slashIndex;
@@ -644,8 +754,8 @@ export default function ChatArea({
                           ) : (
                             <FileText className="h-4 w-4 flex-none text-muted-2" />
                           )}
-                          <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-ink-2">{item.name}</span>
-                          <span className="flex-none rounded-full bg-line-soft px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-muted-2">
+                          <span className="min-w-0 flex-1 truncate text-sm font-semibold text-ink-2">{item.name}</span>
+                          <span className="flex-none rounded-full bg-line-soft px-1.5 py-0.5 text-micro font-bold uppercase tracking-wide text-muted-2">
                             File
                           </span>
                         </button>
@@ -665,14 +775,14 @@ export default function ChatArea({
                           highlighted ? 'bg-line-soft' : item.active ? 'bg-paper' : 'hover:bg-paper',
                         )}
                       >
-                        <span className="text-[15px] leading-none">{item.emoji}</span>
+                        <span className="text-base leading-none">{item.emoji}</span>
                         <span className="min-w-0 flex-1">
-                          <span className={cn('block truncate text-[13px] font-semibold', item.active ? 'text-ink' : 'text-ink-2')}>
+                          <span className={cn('block truncate text-sm font-semibold', item.active ? 'text-ink' : 'text-ink-2')}>
                             {item.name}
                           </span>
-                          <span className="block truncate text-[11px] text-muted-2">{item.description}</span>
+                          <span className="block truncate text-xs text-muted-2">{item.description}</span>
                         </span>
-                        {item.active && <Check className="h-3.5 w-3.5 flex-none text-orange-deep" />}
+                        {item.active && <Check className="h-3.5 w-3.5 flex-none text-orange-ink" />}
                       </button>
                     );
                   })
@@ -681,7 +791,7 @@ export default function ChatArea({
             )}
           </div>
 
-          <div className="mt-2 flex items-center justify-between text-[11px] text-muted-2">
+          <div className="mt-2 flex items-center justify-between text-xs text-muted-2">
             <span>{authenticated ? 'Enter to send · @ to mention a skill or file' : 'Not signed in — sign in to send'}</span>
             <span>{streaming ? 'Generating…' : contextLabel}</span>
           </div>

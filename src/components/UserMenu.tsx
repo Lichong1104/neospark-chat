@@ -30,12 +30,12 @@ function MenuItem({
       onClick={onClick}
       className={cn(
         'flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-paper',
-        danger ? 'text-orange-dark' : 'text-ink-2',
+        danger ? 'text-danger' : 'text-ink-2',
       )}
     >
       <Icon className="h-4 w-4 flex-none" />
-      <span className="min-w-0 flex-1 truncate text-[13px] font-semibold">{label}</span>
-      {hint && <span className="flex-none text-[11px] text-muted-2">{hint}</span>}
+      <span className="min-w-0 flex-1 truncate text-sm font-semibold">{label}</span>
+      {hint && <span className="flex-none text-xs text-muted-2">{hint}</span>}
     </button>
   );
 }
@@ -109,15 +109,15 @@ export default function UserMenu({ collapsed, onNavigate }: UserMenuProps) {
           {user.avatar_url ? (
             <img src={user.avatar_url} alt="" referrerPolicy="no-referrer" className="h-8 w-8 flex-none rounded-full object-cover" />
           ) : (
-            <div className="flex h-8 w-8 flex-none items-center justify-center rounded-full bg-orange/15 text-sm font-bold text-orange-deep">
+            <div className="flex h-8 w-8 flex-none items-center justify-center rounded-full bg-orange/15 text-sm font-bold text-orange-ink">
               {(user.name || user.email)[0]?.toUpperCase() ?? <UserIcon className="h-4 w-4" />}
             </div>
           )}
           {!collapsed && (
             <>
               <div className="min-w-0 flex-1">
-                <div className="truncate text-[13px] font-semibold leading-tight">{user.name || user.email}</div>
-                <div className="truncate text-[11px] text-muted-2" title={`${planLabel} · ${subscriptionState}`}>
+                <div className="truncate text-sm font-semibold leading-tight">{user.name || user.email}</div>
+                <div className="truncate text-xs text-muted-2" title={`${planLabel} · ${subscriptionState}`}>
                   <span className="capitalize">{planLabel}</span>
                   {' · '}
                   {credits.toLocaleString('en-US')} credits
@@ -153,13 +153,13 @@ export default function UserMenu({ collapsed, onNavigate }: UserMenuProps) {
             {user.avatar_url ? (
               <img src={user.avatar_url} alt="" referrerPolicy="no-referrer" className="h-8 w-8 flex-none rounded-full object-cover" />
             ) : (
-              <div className="flex h-8 w-8 flex-none items-center justify-center rounded-full bg-orange/15 text-sm font-bold text-orange-deep">
+              <div className="flex h-8 w-8 flex-none items-center justify-center rounded-full bg-orange/15 text-sm font-bold text-orange-ink">
                 {(user.name || user.email)[0]?.toUpperCase()}
               </div>
             )}
             <div className="min-w-0 flex-1">
-              <div className="truncate text-[13px] font-bold leading-tight">{user.name || 'NeoSpark user'}</div>
-              <div className="truncate text-[11px] text-muted-2">{user.email}</div>
+              <div className="truncate text-sm font-bold leading-tight">{user.name || 'NeoSpark user'}</div>
+              <div className="truncate text-xs text-muted-2">{user.email}</div>
             </div>
           </div>
 

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { ArrowLeft, Check, CreditCard, ExternalLink, Sparkles, TriangleAlert } from 'lucide-react';
+import { Check, CreditCard, ExternalLink, Sparkles, TriangleAlert } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import PageShell from '../components/PageShell';
 import { useAuth } from '../auth/AuthContext';
 import { cancelSubscription, getBillingPortal, getBillingState } from '../lib/api';
 import type { BillingState } from '../types';
@@ -68,7 +69,7 @@ const PLAN_DETAILS: Record<string, PlanDetail> = {
   },
 };
 
-export default function SubscriptionPage({ onBack }: { onBack: () => void }) {
+export default function SubscriptionPage({ onBack, onOpenNav }: { onBack: () => void; onOpenNav: () => void }) {
   const { user, openLogin, isLoading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [billing, setBilling] = useState<BillingState | null>(null);
@@ -77,14 +78,6 @@ export default function SubscriptionPage({ onBack }: { onBack: () => void }) {
   const [portalBusy, setPortalBusy] = useState(false);
   const [confirmMode, setConfirmMode] = useState<'immediate' | 'period' | null>(null);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const previous = document.title;
-    document.title = 'Subscription — NeoSpark';
-    return () => {
-      document.title = previous;
-    };
-  }, []);
 
   useEffect(() => {
     if (!user) {
@@ -133,9 +126,9 @@ export default function SubscriptionPage({ onBack }: { onBack: () => void }) {
   const statusTone = !sub
     ? 'bg-line-soft text-muted'
     : sub.cancelAtPeriodEnd
-      ? 'bg-orange/10 text-orange-deep'
+      ? 'bg-orange/10 text-orange-ink'
       : sub.status === 'active' || sub.status === 'trialing'
-        ? 'bg-[#e2faf1] text-[#03704d]'
+        ? 'bg-success-soft text-success'
         : 'bg-line-soft text-muted';
 
   const doCancel = async (immediately: boolean) => {
@@ -179,32 +172,17 @@ export default function SubscriptionPage({ onBack }: { onBack: () => void }) {
   );
 
   return (
-    <main className="flex h-full min-w-0 flex-1 flex-col overflow-y-auto">
-      <header className="flex items-center gap-3 border-b border-line bg-surface/70 px-6 py-3 backdrop-blur">
-        <button
-          type="button"
-          onClick={onBack}
-          className="flex items-center gap-1.5 rounded-lg px-2 py-1 text-sm font-semibold text-muted transition-colors hover:text-ink"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to chat
-        </button>
-        <div className="min-w-0 flex-1">
-          <div className="truncate text-sm font-bold tracking-tight">Subscription</div>
-        </div>
-      </header>
-
-      <div className="mx-auto w-full max-w-3xl px-6 py-10">
+    <PageShell title="Subscription" onBack={onBack} onOpenNav={onOpenNav} width="default">
         {authLoading || (user && !billingLoaded) ? (
           skeleton
         ) : !user ? (
           <div className="rounded-2xl border border-line bg-surface p-8 text-center shadow-card">
-            <CreditCard className="mx-auto h-6 w-6 text-orange-deep" />
-            <p className="mt-3 text-[15px] text-muted">Sign in to manage your subscription.</p>
+            <CreditCard className="mx-auto h-6 w-6 text-orange-ink" />
+            <p className="mt-3 text-base text-muted">Sign in to manage your subscription.</p>
             <button
               type="button"
               onClick={openLogin}
-              className="mt-4 rounded-full bg-ink px-5 py-2 text-sm font-semibold text-surface"
+              className="mt-4 min-h-10 rounded-full bg-ink px-5 py-2 text-sm font-semibold text-surface"
             >
               Sign in
             </button>
@@ -214,21 +192,21 @@ export default function SubscriptionPage({ onBack }: { onBack: () => void }) {
             <section className="rounded-2xl border border-line bg-surface p-7 shadow-card sm:p-8">
               <div className="flex flex-wrap items-start justify-between gap-5">
                 <div className="min-w-0">
-                  <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-muted-2">Current plan</p>
+                  <p className="text-xs font-bold uppercase tracking-[0.14em] text-muted-2">Current plan</p>
                   <div className="mt-2 flex flex-wrap items-center gap-2.5">
-                    <CreditCard className="h-5 w-5 text-orange-deep" />
-                    <h1 className="text-[1.75rem] font-bold tracking-[-0.03em]">{plan.name}</h1>
-                    <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold capitalize ${statusTone}`}>
+                    <CreditCard className="h-5 w-5 text-orange-ink" />
+                    <h1 className="text-3xl font-bold tracking-[-0.03em]">{plan.name}</h1>
+                    <span className={`rounded-full px-2.5 py-1 text-xs font-bold capitalize ${statusTone}`}>
                       {statusLabel}
                     </span>
                   </div>
-                  <p className="mt-2 max-w-md text-[14px] leading-relaxed text-muted">{plan.blurb}</p>
+                  <p className="mt-2 max-w-md text-sm leading-relaxed text-muted">{plan.blurb}</p>
                 </div>
                 <div className="text-left sm:text-right">
-                  <div className="text-[2rem] font-bold leading-none tracking-[-0.03em]">
+                  <div className="text-display font-bold leading-none tracking-[-0.03em]">
                     {price === 0 ? 'Free' : `$${price.toLocaleString('en-US')}`}
                   </div>
-                  <div className="mt-1 text-[12px] text-muted-2">
+                  <div className="mt-1 text-xs text-muted-2">
                     {price === 0 ? 'no card required' : `per ${intervalLabel}`}
                   </div>
                 </div>
@@ -236,8 +214,8 @@ export default function SubscriptionPage({ onBack }: { onBack: () => void }) {
 
               <ul className="mt-7 grid grid-cols-1 gap-2.5 border-t border-line-soft pt-6 sm:grid-cols-2">
                 {plan.features.map((feature) => (
-                  <li key={feature} className="flex items-center gap-2 text-[14px] text-ink-2">
-                    <Check className="h-4 w-4 flex-none text-orange-deep" />
+                  <li key={feature} className="flex items-center gap-2 text-sm text-ink-2">
+                    <Check className="h-4 w-4 flex-none text-orange-ink" />
                     {feature}
                   </li>
                 ))}
@@ -245,7 +223,7 @@ export default function SubscriptionPage({ onBack }: { onBack: () => void }) {
             </section>
 
             {error && (
-              <p className="mt-4 rounded-xl bg-orange/10 px-4 py-3 text-[13px] font-medium text-orange-deep">
+              <p className="mt-4 rounded-xl bg-orange/10 px-4 py-3 text-sm font-medium text-orange-ink">
                 {error}
               </p>
             )}
@@ -253,12 +231,12 @@ export default function SubscriptionPage({ onBack }: { onBack: () => void }) {
             {sub ? (
               <section className="mt-4 rounded-2xl border border-line bg-surface p-7 shadow-card sm:p-8">
                 <div className="flex flex-wrap items-center justify-between gap-3">
-                  <h2 className="text-[15px] font-bold tracking-tight">Billing details</h2>
+                  <h2 className="text-base font-bold tracking-tight">Billing details</h2>
                   <button
                     type="button"
                     onClick={() => void manageBilling()}
                     disabled={portalBusy}
-                    className="flex items-center gap-1.5 rounded-full border border-line px-3.5 py-1.5 text-[12px] font-semibold text-muted transition-colors hover:border-ink hover:text-ink disabled:opacity-40"
+                    className="flex min-h-9 items-center gap-1.5 rounded-full border border-line px-3.5 py-1.5 text-xs font-semibold text-muted transition-colors hover:border-ink hover:text-ink disabled:opacity-40"
                   >
                     {portalBusy ? 'Opening…' : 'Manage billing'}
                     <ExternalLink className="h-3.5 w-3.5" />
@@ -267,19 +245,19 @@ export default function SubscriptionPage({ onBack }: { onBack: () => void }) {
 
                 <dl className="mt-5 grid grid-cols-2 gap-x-6 gap-y-4 text-sm sm:grid-cols-4">
                   <div>
-                    <dt className="text-[11px] font-bold uppercase tracking-[0.12em] text-muted-2">Billing interval</dt>
+                    <dt className="text-xs font-bold uppercase tracking-[0.12em] text-muted-2">Billing interval</dt>
                     <dd className="mt-1 font-medium capitalize">{sub.billingInterval}</dd>
                   </div>
                   <div>
-                    <dt className="text-[11px] font-bold uppercase tracking-[0.12em] text-muted-2">Current period ends</dt>
+                    <dt className="text-xs font-bold uppercase tracking-[0.12em] text-muted-2">Current period ends</dt>
                     <dd className="mt-1 font-medium">{periodEnd ?? '—'}</dd>
                   </div>
                   <div>
-                    <dt className="text-[11px] font-bold uppercase tracking-[0.12em] text-muted-2">Status</dt>
+                    <dt className="text-xs font-bold uppercase tracking-[0.12em] text-muted-2">Status</dt>
                     <dd className="mt-1 font-medium capitalize">{sub.status}</dd>
                   </div>
                   <div>
-                    <dt className="text-[11px] font-bold uppercase tracking-[0.12em] text-muted-2">Renewal</dt>
+                    <dt className="text-xs font-bold uppercase tracking-[0.12em] text-muted-2">Renewal</dt>
                     <dd className="mt-1 font-medium">
                       {sub.cancelAtPeriodEnd ? 'Cancels at period end' : 'Renews automatically'}
                     </dd>
@@ -291,7 +269,7 @@ export default function SubscriptionPage({ onBack }: { onBack: () => void }) {
                     type="button"
                     onClick={() => setConfirmMode('period')}
                     disabled={sub.cancelAtPeriodEnd || busy !== null}
-                    className="rounded-full border border-ink px-4 py-2 text-sm font-semibold transition-colors hover:bg-ink hover:text-surface disabled:opacity-40"
+                    className="min-h-10 rounded-full border border-ink px-4 py-2 text-sm font-semibold transition-colors hover:bg-ink hover:text-surface disabled:opacity-40"
                   >
                     Cancel at period end
                   </button>
@@ -299,12 +277,12 @@ export default function SubscriptionPage({ onBack }: { onBack: () => void }) {
                     type="button"
                     onClick={() => setConfirmMode('immediate')}
                     disabled={busy !== null}
-                    className="rounded-full border border-orange-deep px-4 py-2 text-sm font-semibold text-orange-deep transition-colors hover:bg-orange-deep hover:text-surface disabled:opacity-40"
+                    className="min-h-10 rounded-full border border-danger px-4 py-2 text-sm font-semibold text-danger transition-colors hover:bg-danger hover:text-surface disabled:opacity-40"
                   >
                     Cancel immediately
                   </button>
                 </div>
-                <p className="mt-3 text-[12px] leading-relaxed text-muted-2">
+                <p className="mt-3 text-xs leading-relaxed text-muted-2">
                   Cancelling at period end keeps access until {periodEnd ?? 'your current period ends'}.
                   Immediate cancellation ends access now and may be prorated.
                 </p>
@@ -312,10 +290,10 @@ export default function SubscriptionPage({ onBack }: { onBack: () => void }) {
             ) : (
               <section className="mt-4 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-line bg-surface p-7 shadow-card sm:p-8">
                 <div className="flex items-start gap-3">
-                  <Sparkles className="mt-0.5 h-5 w-5 flex-none text-orange-deep" />
+                  <Sparkles className="mt-0.5 h-5 w-5 flex-none text-orange-ink" />
                   <div>
-                    <h2 className="text-[15px] font-bold tracking-tight">Want more credits?</h2>
-                    <p className="mt-1 max-w-md text-[14px] leading-relaxed text-muted">
+                    <h2 className="text-base font-bold tracking-tight">Want more credits?</h2>
+                    <p className="mt-1 max-w-md text-sm leading-relaxed text-muted">
                       Compare Starter, Growth, Pro and Ultimate. Every paid plan opens the full
                       Skill catalogue and adds a faster queue.
                     </p>
@@ -324,7 +302,7 @@ export default function SubscriptionPage({ onBack }: { onBack: () => void }) {
                 <button
                   type="button"
                   onClick={() => navigate('/pricing')}
-                  className="rounded-full bg-ink px-5 py-2.5 text-sm font-semibold text-surface shadow-[0_1px_2px_rgba(10,10,10,.16),0_10px_22px_-10px_rgba(10,10,10,.5)] transition-transform duration-200 hover:-translate-y-0.5"
+                  className="min-h-10 rounded-full bg-ink px-5 py-2.5 text-sm font-semibold text-surface shadow-[0_1px_2px_rgba(10,10,10,.16),0_10px_22px_-10px_rgba(10,10,10,.5)] transition-transform duration-200 hover:-translate-y-0.5"
                 >
                   Compare plans
                 </button>
@@ -332,14 +310,13 @@ export default function SubscriptionPage({ onBack }: { onBack: () => void }) {
             )}
           </>
         )}
-      </div>
 
       {/* Cancel confirmation dialog */}
       {confirmMode && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <button type="button" aria-label="Cancel" className="absolute inset-0 bg-ink/40 backdrop-blur-sm" onClick={() => setConfirmMode(null)} />
           <div className="relative w-full max-w-sm rounded-2xl bg-surface p-6 shadow-panel" role="dialog" aria-modal="true">
-            <div className="flex items-center gap-2 text-orange-deep">
+            <div className="flex items-center gap-2 text-orange-ink">
               <TriangleAlert className="h-5 w-5" />
               <h3 className="text-base font-bold tracking-tight">
                 {confirmMode === 'immediate' ? 'Cancel immediately?' : 'Cancel at period end?'}
@@ -354,7 +331,7 @@ export default function SubscriptionPage({ onBack }: { onBack: () => void }) {
               <button
                 type="button"
                 onClick={() => setConfirmMode(null)}
-                className="rounded-full px-4 py-2 text-sm font-semibold text-muted transition-colors hover:text-ink"
+                className="min-h-10 rounded-full px-4 py-2 text-sm font-semibold text-muted transition-colors hover:text-ink"
               >
                 Keep plan
               </button>
@@ -362,7 +339,7 @@ export default function SubscriptionPage({ onBack }: { onBack: () => void }) {
                 type="button"
                 onClick={() => void doCancel(confirmMode === 'immediate')}
                 disabled={busy !== null}
-                className="rounded-full bg-ink px-4 py-2 text-sm font-semibold text-surface disabled:opacity-40"
+                className="min-h-10 rounded-full bg-ink px-4 py-2 text-sm font-semibold text-surface disabled:opacity-40"
               >
                 {busy !== null ? 'Cancelling…' : 'Confirm cancel'}
               </button>
@@ -370,6 +347,6 @@ export default function SubscriptionPage({ onBack }: { onBack: () => void }) {
           </div>
         </div>
       )}
-    </main>
+    </PageShell>
   );
 }
