@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { BookOpen, ChevronDown, Coins, CreditCard, Loader2, MessageSquare, PanelLeftClose, PanelLeftOpen, Pin, Plus, Tag, Trash2, X } from 'lucide-react';
+import { BookOpen, ChevronDown, Coins, CreditCard, Loader2, MessageSquare, PanelLeftClose, PanelLeftOpen, Pin, Plus, Tag, Trash2, Wrench, X } from 'lucide-react';
 import type { Session, View } from '../types';
 import { cn } from '../lib/utils';
 import UserMenu from './UserMenu';
@@ -120,6 +120,7 @@ export default function Sidebar({
   };
 
   const navItems = [
+    { key: 'skills', label: 'Skills', icon: Wrench },
     { key: 'pricing', label: 'Pricing', icon: Tag },
     { key: 'balance', label: 'Balance & usage', icon: Coins },
     { key: 'subscription', label: 'Subscription', icon: CreditCard },

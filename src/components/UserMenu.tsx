@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ComponentType } from 'react';
-import { ChevronDown, ChevronUp, KeyRound, LogOut, User as UserIcon, Wrench } from 'lucide-react';
+import { ChevronDown, ChevronUp, KeyRound, LogOut, User as UserIcon } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { getBalance, getBillingState } from '../lib/api';
 import type { BalanceInfo, BillingState, View } from '../types';
@@ -166,7 +166,6 @@ export default function UserMenu({ collapsed, onNavigate }: UserMenuProps) {
           <div className="my-1 h-px bg-line-soft" />
 
           <MenuItem icon={UserIcon} label="User" hint="Account" onClick={() => go('user')} />
-          <MenuItem icon={Wrench} label="Skill" hint="Market" onClick={() => go('skills')} />
           <MenuItem icon={KeyRound} label="API Key" onClick={() => go('api-keys')} />
 
           <div className="my-1 h-px bg-line-soft" />
