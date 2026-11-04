@@ -41,7 +41,7 @@ function MenuItem({
 }
 
 /**
- * Bottom-left account trigger. One click opens the platform menu — User, Skill,
+ * Bottom-left account trigger. One click opens the platform menu — User,
  * API Key and Sign out — and each entry opens its own page in the app.
  */
 export default function UserMenu({ collapsed, onNavigate }: UserMenuProps) {

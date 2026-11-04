@@ -138,7 +138,7 @@ export default function Sidebar({
         />
       )}
       <aside
-        aria-label="Conversations"
+        aria-label="Main navigation"
         className={cn(
           'fixed inset-y-0 left-0 z-50 flex h-full w-[min(18rem,85vw)] flex-none flex-col border-r border-line bg-surface shadow-panel transition-[width,transform] duration-200',
           'lg:static lg:z-auto lg:w-72 lg:max-w-none lg:translate-x-0 lg:shadow-none',
@@ -358,7 +358,7 @@ export default function Sidebar({
           </div>
         )}
 
-        {/* User footer: one click opens User / Skill / API Key / Sign out */}
+        {/* User footer: account menu with User, API Key and Sign out */}
         <div className={cn('mt-auto border-t border-line-soft px-3 py-3', compact && 'px-2')}>
           <UserMenu collapsed={compact} onNavigate={onNavigate} />
         </div>
