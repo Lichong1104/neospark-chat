@@ -3,3 +3,6 @@ dist
 .env
 .env.local
 *.log
+.agent
+.claude
+.claude-plugin
