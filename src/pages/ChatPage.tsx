@@ -8,7 +8,6 @@ import PricingPage from './PricingPage';
 import BalancePage from './BalancePage';
 import SubscriptionPage from './SubscriptionPage';
 import DocsPage from './DocsPage';
-import SkillStorePage from './SkillStorePage';
 import UserPage from './UserPage';
 import SkillsPage from './SkillsPage';
 import ApiKeysPage from './ApiKeysPage';
@@ -298,7 +297,6 @@ export default function ChatPage() {
     if (p.startsWith('/balance')) return 'balance';
     if (p.startsWith('/subscription')) return 'subscription';
     if (p.startsWith('/docs')) return 'docs';
-    if (p.startsWith('/skill-store')) return 'skill-store';
     if (p.startsWith('/user')) return 'user';
     if (p.startsWith('/skills')) return 'skills';
     if (p.startsWith('/api-keys')) return 'api-keys';
@@ -321,7 +319,6 @@ export default function ChatPage() {
       balance: 'Balance & usage — NeoSpark',
       subscription: 'Subscription — NeoSpark',
       docs: 'Docs — NeoSpark',
-      'skill-store': 'Skill Store — NeoSpark',
       user: 'Account — NeoSpark',
       skills: 'Skills — NeoSpark',
       'api-keys': 'API keys — NeoSpark',
@@ -386,13 +383,6 @@ export default function ChatPage() {
         <SubscriptionPage onBack={() => go('chat')} onOpenNav={() => setMobileNavOpen(true)} />
       ) : view === 'docs' ? (
         <DocsPage onBack={() => go('chat')} onOpenNav={() => setMobileNavOpen(true)} />
-      ) : view === 'skill-store' ? (
-        <SkillStorePage
-          onBack={() => go('chat')}
-          onOpenNav={() => setMobileNavOpen(true)}
-          skills={skills}
-          onNavigate={go}
-        />
       ) : view === 'user' ? (
         <UserPage onBack={() => go('chat')} onOpenNav={() => setMobileNavOpen(true)} />
       ) : view === 'skills' ? (

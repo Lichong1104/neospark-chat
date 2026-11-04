@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { BookOpen, ChevronDown, Coins, CreditCard, Loader2, MessageSquare, PanelLeftClose, PanelLeftOpen, Pin, Plus, Store, Tag, Trash2, X } from 'lucide-react';
+import { BookOpen, ChevronDown, Coins, CreditCard, Loader2, MessageSquare, PanelLeftClose, PanelLeftOpen, Pin, Plus, Tag, Trash2, X } from 'lucide-react';
 import type { Session, View } from '../types';
 import { cn } from '../lib/utils';
 import UserMenu from './UserMenu';
@@ -124,7 +124,6 @@ export default function Sidebar({
     { key: 'balance', label: 'Balance & usage', icon: Coins },
     { key: 'subscription', label: 'Subscription', icon: CreditCard },
     { key: 'docs', label: 'Docs', icon: BookOpen },
-    { key: 'skill-store', label: 'Skill Store', icon: Store },
   ] as const;
 
   return (
