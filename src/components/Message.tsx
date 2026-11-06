@@ -4,6 +4,7 @@ import { Check, FileText, Maximize2, Play } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import type { MediaBlock, Message as ChatMessage } from '../types';
 import { cn } from '../lib/utils';
+import { normalizeAssistantContent } from '../lib/media';
 
 function RingMark({ className }: { className?: string }) {
   return (
@@ -32,34 +33,6 @@ function UserAvatar() {
       {(user?.name || user?.email || '?')[0]?.toUpperCase()}
     </div>
   );
-}
-
-function assetPath(url: string): string {
-  try {
-    return new URL(url, window.location.origin).pathname;
-  } catch {
-    return url;
-  }
-}
-
-/**
- * The backend derives `content` from the block list, so every generated asset
- * also appears as markdown inside the text. Rendering that markdown alongside
- * the media grid shows the image twice (and the inline copy points at a
- * relative URL that breaks while streaming). Once media blocks exist, they are
- * the single source of truth — drop their markdown duplicates from the text.
- */
-function stripMediaMarkdown(content: string, media: MediaBlock[]): string {
-  if (!content || media.length === 0) return content;
-  const paths = new Set(media.map((m) => assetPath(m.url)));
-  const isMedia = (url: string) => paths.has(assetPath(url));
-  return content
-    .replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, (match, _alt, url: string) => (isMedia(url) ? '' : match))
-    .replace(/(^|[^!])\[([^\]]*)\]\(([^)\s]+)\)/g, (match, prefix, _text, url: string) =>
-      isMedia(url) ? prefix : match,
-    )
-    .replace(/\n{3,}/g, '\n\n')
-    .trim();
 }
 
 function ThinkingDots() {
@@ -96,9 +69,14 @@ export function Message({
     );
   }
 
-  const media = message.media ?? [];
+  const { text: displayContent, media } = normalizeAssistantContent(message.content, message.media ?? []);
   const showThinking = message.streaming && !message.content && media.length === 0;
-  const displayContent = stripMediaMarkdown(message.content, media);
+  const hasVisual = media.some((block) => block.type === 'image' || block.type === 'video');
+  // A finished turn that talks about an image but delivered no file means the
+  // skill never uploaded one; say so instead of letting a bare path stand in
+  // for the picture.
+  const expectedImage = /(?:^|[^\w])[\w./-]+\.(?:png|jpe?g|webp|gif)\b/i.test(message.content);
+  const showMissingImage = !message.streaming && !hasVisual && expectedImage;
 
   return (
     <div className="animate-fade-up flex items-start gap-3">
@@ -205,6 +183,12 @@ export function Message({
               );
             })}
           </div>
+        ) : null}
+
+        {showMissingImage ? (
+          <p className="rounded-xl border border-orange/30 bg-orange/[0.06] px-3 py-2 text-xs font-medium leading-relaxed text-orange-ink">
+            未收到可显示的图片文件，本次生成可能没有完成。请重试，或在顶部切换模型后重试。
+          </p>
         ) : null}
 
         {message.plan && message.plan.length > 0 ? (
