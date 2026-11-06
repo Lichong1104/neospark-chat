@@ -4,7 +4,6 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import Sidebar from '../components/Sidebar';
 import ChatArea from '../components/ChatArea';
-import ImagePreviewPanel from '../components/ImagePreviewPanel';
 import PricingPage from './PricingPage';
 import BalancePage from './BalancePage';
 import SubscriptionPage from './SubscriptionPage';
@@ -14,7 +13,7 @@ import SkillsPage from './SkillsPage';
 import ApiKeysPage from './ApiKeysPage';
 import { MODELS, SKILLS } from '../data/skills';
 import { chatStream, deleteSession, getSessionMessages, listModels, listSessions, listSkills, pinSession } from '../lib/api';
-import type { Attachment, MediaBlock, Message, Session, ThinkingDepth, View } from '../types';
+import type { Attachment, MediaBlock, Message, Session, View } from '../types';
 import { uid } from '../lib/utils';
 
 function buildMessageWithAttachments(text: string, attachments: Attachment[]): string {
@@ -35,8 +34,7 @@ export default function ChatPage() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
-  const [model, setModel] = useState('gemini:tengda-gemini-pro');
-  const [thinkingDepth, setThinkingDepth] = useState<ThinkingDepth>('medium');
+  const [model, setModel] = useState('gemini:gemini-4-argon');
   const [draft, setDraft] = useState('');
   const [pendingAuto, setPendingAuto] = useState<{ skill: string; message: string } | null>(null);
   const [streaming, setStreaming] = useState(false);
@@ -44,8 +42,6 @@ export default function ChatPage() {
   const [loadingSessions, setLoadingSessions] = useState(false);
   // Bumped on every conversation change so the composer drops its attachments.
   const [composerKey, setComposerKey] = useState(0);
-  // Image shown in the right-hand preview panel; null keeps the chat full width.
-  const [previewImage, setPreviewImage] = useState<MediaBlock | null>(null);
 
   const abortRef = useRef<AbortController | null>(null);
   const streamingRef = useRef(false);
@@ -125,12 +121,9 @@ export default function ChatPage() {
 
   const newChat = useCallback(() => {
     cancelStream();
-    setPreviewImage(null);
     setActiveId(null);
     setMessages([]);
     setSelectedSkills([]);
-    setModel('gemini:tengda-gemini-pro');
-    setThinkingDepth('medium');
     setDraft('');
     setComposerKey((v) => v + 1);
     navigate('/');
@@ -139,7 +132,6 @@ export default function ChatPage() {
   const selectSession = useCallback(
     async (id: string) => {
       cancelStream();
-      setPreviewImage(null);
       setActiveId(id);
       // Different conversation ⇒ the composer starts clean (no stale attachments).
       if (id !== activeId) setComposerKey((v) => v + 1);
@@ -147,7 +139,6 @@ export default function ChatPage() {
       if (s) {
         setSelectedSkills(s.skillIds);
         setModel(s.model ?? '');
-        setThinkingDepth(s.thinkingDepth ?? 'medium');
       }
       setLoadingHistory(true);
       try {
@@ -177,7 +168,6 @@ export default function ChatPage() {
         cancelStream();
         setActiveId(null);
         setMessages([]);
-        setThinkingDepth('medium');
         setComposerKey((v) => v + 1);
       }
       toast('Conversation deleted');
@@ -225,7 +215,7 @@ export default function ChatPage() {
 
       try {
         const sessionId = await chatStream(
-          { skillIds, message: content, sessionId: activeId, model: model || undefined, thinkingDepth },
+          { skillIds, message: content, sessionId: activeId, model: model || undefined },
           {
             onText: (t) => {
               acc += t;
@@ -271,7 +261,7 @@ export default function ChatPage() {
         setStreaming(false);
       }
     },
-    [selectedSkills, model, thinkingDepth, activeId, refreshSessions],
+    [selectedSkills, model, activeId, refreshSessions],
   );
 
   // Auto-run the jump-in intent once signed in.
@@ -374,7 +364,6 @@ export default function ChatPage() {
           onDraftChange={setDraft}
           onSend={(t, a) => void sendMessage(t, a)}
           onConfirmSelect={handleConfirmSelect}
-          onPreviewImage={setPreviewImage}
           authenticated={!!user}
           onRequestLogin={openLogin}
           skills={selectableSkills}
@@ -383,8 +372,6 @@ export default function ChatPage() {
           models={models}
           model={model}
           onModelChange={setModel}
-          thinkingDepth={thinkingDepth}
-          onThinkingDepthChange={setThinkingDepth}
           composerKey={composerKey}
           onOpenNav={() => setMobileNavOpen(true)}
         />
@@ -408,9 +395,6 @@ export default function ChatPage() {
       ) : (
         <ApiKeysPage onBack={() => go('chat')} onOpenNav={() => setMobileNavOpen(true)} />
       )}
-      {view === 'chat' && previewImage ? (
-        <ImagePreviewPanel image={previewImage} onClose={() => setPreviewImage(null)} />
-      ) : null}
     </div>
   );
 }
