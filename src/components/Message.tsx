@@ -1,6 +1,6 @@
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Check, FileText, Maximize2, Play } from 'lucide-react';
+import { Check, FileText, Maximize2 } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import type { MediaBlock, Message as ChatMessage } from '../types';
 import { cn } from '../lib/utils';
@@ -34,34 +34,6 @@ function UserAvatar() {
   );
 }
 
-function assetPath(url: string): string {
-  try {
-    return new URL(url, window.location.origin).pathname;
-  } catch {
-    return url;
-  }
-}
-
-/**
- * The backend derives `content` from the block list, so every generated asset
- * also appears as markdown inside the text. Rendering that markdown alongside
- * the media grid shows the image twice (and the inline copy points at a
- * relative URL that breaks while streaming). Once media blocks exist, they are
- * the single source of truth — drop their markdown duplicates from the text.
- */
-function stripMediaMarkdown(content: string, media: MediaBlock[]): string {
-  if (!content || media.length === 0) return content;
-  const paths = new Set(media.map((m) => assetPath(m.url)));
-  const isMedia = (url: string) => paths.has(assetPath(url));
-  return content
-    .replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, (match, _alt, url: string) => (isMedia(url) ? '' : match))
-    .replace(/(^|[^!])\[([^\]]*)\]\(([^)\s]+)\)/g, (match, prefix, _text, url: string) =>
-      isMedia(url) ? prefix : match,
-    )
-    .replace(/\n{3,}/g, '\n\n')
-    .trim();
-}
-
 function ThinkingDots() {
   return (
     <span className="thinking-dots" aria-label="Thinking">
@@ -75,12 +47,12 @@ function ThinkingDots() {
 export function Message({
   message,
   onConfirmSelect,
-  onPreviewMedia,
+  onPreviewImage,
   disabled = false,
 }: {
   message: ChatMessage;
   onConfirmSelect: (option: string) => void;
-  onPreviewMedia: (media: MediaBlock) => void;
+  onPreviewImage: (image: MediaBlock) => void;
   disabled?: boolean;
 }) {
   if (message.role === 'user') {
@@ -98,7 +70,6 @@ export function Message({
 
   const media = message.media ?? [];
   const showThinking = message.streaming && !message.content && media.length === 0;
-  const displayContent = stripMediaMarkdown(message.content, media);
 
   return (
     <div className="animate-fade-up flex items-start gap-3">
@@ -106,7 +77,7 @@ export function Message({
         <RingMark className="h-4 w-4" />
       </div>
       <div className="min-w-0 flex-1 space-y-3">
-        {displayContent ? (
+        {message.content ? (
           <div className="markdown-body">
             <ReactMarkdown
               remarkPlugins={[remarkGfm]}
@@ -118,7 +89,7 @@ export function Message({
                 ),
               }}
             >
-              {displayContent}
+              {message.content}
             </ReactMarkdown>
           </div>
         ) : showThinking ? (
@@ -134,7 +105,7 @@ export function Message({
                   <button
                     key={i}
                     type="button"
-                    onClick={() => onPreviewMedia(block)}
+                    onClick={() => onPreviewImage(block)}
                     aria-label={`Preview ${block.filename || 'image'}`}
                     className={cn(
                       'group relative block cursor-zoom-in overflow-hidden rounded-xl border border-line-soft bg-paper',
@@ -160,36 +131,7 @@ export function Message({
                 );
               }
               if (block.type === 'video') {
-                const single = media.length === 1;
-                return (
-                  <button
-                    key={i}
-                    type="button"
-                    onClick={() => onPreviewMedia(block)}
-                    aria-label={`Preview ${block.filename || 'video'}`}
-                    className={cn(
-                      'group relative block cursor-zoom-in overflow-hidden rounded-xl border border-line-soft bg-paper',
-                      single ? 'max-w-full' : 'aspect-square w-full',
-                    )}
-                  >
-                    <video
-                      src={`${block.url}#t=0.1`}
-                      muted
-                      playsInline
-                      preload="metadata"
-                      className={cn(
-                        'pointer-events-none block',
-                        single ? 'max-h-60 w-auto max-w-full object-contain' : 'h-full w-full object-cover',
-                      )}
-                    />
-                    <span className="absolute inset-0 flex items-center justify-center bg-ink/20 transition-colors group-hover:bg-ink/30">
-                      <span className="flex items-center gap-1 rounded-full bg-surface/90 px-2.5 py-1 text-xs font-semibold text-ink shadow-card">
-                        <Play className="h-3 w-3 fill-ink" />
-                        Play
-                      </span>
-                    </span>
-                  </button>
-                );
+                return <video key={i} src={block.url} controls className="w-full rounded-xl border border-line-soft" />;
               }
               return (
                 <a

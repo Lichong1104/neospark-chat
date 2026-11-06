@@ -17,7 +17,7 @@ interface ChatAreaProps {
   onDraftChange: (text: string) => void;
   onSend: (text: string, attachments: Attachment[]) => void;
   onConfirmSelect: (option: string) => void;
-  onPreviewMedia: (media: MediaBlock) => void;
+  onPreviewImage: (image: MediaBlock) => void;
   authenticated: boolean;
   onRequestLogin: () => void;
   skills: Skill[];
@@ -99,7 +99,7 @@ export default function ChatArea({
   onDraftChange,
   onSend,
   onConfirmSelect,
-  onPreviewMedia,
+  onPreviewImage,
   authenticated,
   onRequestLogin,
   skills,
@@ -548,7 +548,7 @@ export default function ChatArea({
                   key={m.id}
                   message={m}
                   onConfirmSelect={onConfirmSelect}
-                  onPreviewMedia={onPreviewMedia}
+                  onPreviewImage={onPreviewImage}
                   disabled={streaming}
                 />
               ))}

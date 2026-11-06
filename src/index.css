@@ -334,14 +334,6 @@ body {
   text-decoration: underline;
   text-underline-offset: 3px;
 }
-/* Media normally renders from structured blocks; this only catches markdown
-   images in older messages that carry no block metadata. */
-.markdown-body img {
-  max-width: 100%;
-  height: auto;
-  border-radius: 12px;
-  border: 1px solid var(--line-soft);
-}
 /* Tables scroll sideways instead of pushing the whole message column wide. */
 .markdown-table-wrap {
   margin: 0.8em 0;
