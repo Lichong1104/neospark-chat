@@ -14,7 +14,6 @@ import SkillsPage from './SkillsPage';
 import ApiKeysPage from './ApiKeysPage';
 import { MODELS, SKILLS } from '../data/skills';
 import {
-  absolutizeMarkdownLinks,
   absolutizeUrl,
   chatStream,
   deleteSession,
@@ -27,7 +26,6 @@ import {
   pinSession,
 } from '../lib/api';
 import type { Attachment, MediaBlock, Message, Session, ThinkingDepth, View } from '../types';
-import { normalizeAssistantContent } from '../lib/media';
 import { uid } from '../lib/utils';
 
 function buildMessageWithAttachments(text: string, attachments: Attachment[]): string {
@@ -36,8 +34,6 @@ function buildMessageWithAttachments(text: string, attachments: Attachment[]): s
     .join('\n');
   return [text.trim(), 'Reference attachments:', refs].filter(Boolean).join('\n\n');
 }
-
-const DEFAULT_MODEL = 'anthropic:claude-opus-5';
 
 /** Union of two media lists, keyed by URL, keeping the current order first. */
 function mergeMedia(current: MediaBlock[] | undefined, extra: MediaBlock[]): MediaBlock[] | undefined {
@@ -63,7 +59,7 @@ export default function ChatPage() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
-  const [model, setModel] = useState(DEFAULT_MODEL);
+  const [model, setModel] = useState('gemini:tengda-gemini-pro');
   const [thinkingDepth, setThinkingDepth] = useState<ThinkingDepth>('medium');
   const [draft, setDraft] = useState('');
   const [pendingAuto, setPendingAuto] = useState<{ skill: string; message: string } | null>(null);
@@ -100,12 +96,7 @@ export default function ChatPage() {
   useEffect(() => {
     refreshSkills();
     listModels()
-      .then((m) => {
-        if (!m.length) return;
-        setModels(m);
-        // A stored model may have been retired; never keep an unavailable id.
-        setModel((prev) => (m.some((x) => x.id === prev) ? prev : m[0].id));
-      })
+      .then((m) => m.length && setModels(m))
       .catch(() => {});
   }, [refreshSkills]);
 
@@ -167,7 +158,7 @@ export default function ChatPage() {
     setActiveId(null);
     setMessages([]);
     setSelectedSkills([]);
-    setModel(DEFAULT_MODEL);
+    setModel('gemini:tengda-gemini-pro');
     setThinkingDepth('medium');
     setDraft('');
     setComposerKey((v) => v + 1);
@@ -184,9 +175,7 @@ export default function ChatPage() {
       const s = sessions.find((x) => x.id === id);
       if (s) {
         setSelectedSkills(s.skillIds);
-        // Sessions remember their model; retired ids (e.g. the old Gemini
-        // alias) fall back to the default instead of being sent again.
-        setModel(s.model && models.some((m) => m.id === s.model) ? s.model : DEFAULT_MODEL);
+        setModel(s.model ?? '');
         setThinkingDepth(s.thinkingDepth ?? 'medium');
       }
       setLoadingHistory(true);
@@ -198,7 +187,7 @@ export default function ChatPage() {
         setLoadingHistory(false);
       }
     },
-    [cancelStream, sessions, activeId, models],
+    [cancelStream, sessions, activeId],
   );
 
   const toggleSkill = useCallback((id: string) => {
@@ -367,11 +356,7 @@ export default function ChatPage() {
           controller.signal,
         );
 
-        patch({
-          content: absolutizeMarkdownLinks(acc || 'The skill finished but returned no displayable content.'),
-          media,
-          streaming: false,
-        });
+        patch({ content: acc || 'The skill finished but returned no displayable content.', media, streaming: false });
         if (sessionId) {
           setActiveId(sessionId);
           refreshSessions();
@@ -475,11 +460,7 @@ export default function ChatPage() {
     const seen = new Set<string>();
     const items: MediaBlock[] = [];
     for (const message of messages) {
-      if (message.role !== 'assistant') continue;
-      // Includes assets recovered from the message text, so preview tabs line
-      // up with the tiles Message renders even when blocks were missing.
-      const { media } = normalizeAssistantContent(message.content, message.media ?? []);
-      for (const block of media) {
+      for (const block of message.media ?? []) {
         if (block.type !== 'image' && block.type !== 'video') continue;
         if (!block.url || seen.has(block.url)) continue;
         seen.add(block.url);

@@ -12,9 +12,8 @@ export const SKILLS: Skill[] = [
   { id: 'neospark-video-cli', name: 'NeoSpark Video', description: 'Create and manage video jobs: text-to-video, image-to-video, multi-reference generation and watermark removal.', emoji: '🎬' },
 ];
 
-// Only models that actually run in production. The Gemini alias was retired:
-// it 404s on Vertex and makes the agent answer without calling any tool.
 export const MODELS: ModelOption[] = [
+  { id: 'gemini:tengda-gemini-pro', label: 'Tengda Gemini Pro', supportsThinking: true },
   { id: 'anthropic:claude-opus-5', label: 'Claude Opus 5', supportsThinking: true },
   { id: 'openai:gpt-6-astra', label: 'GPT-6 Astra', supportsThinking: true },
 ];
