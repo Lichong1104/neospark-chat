@@ -4,7 +4,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import Sidebar from '../components/Sidebar';
 import ChatArea from '../components/ChatArea';
-import ImagePreviewPanel from '../components/ImagePreviewPanel';
+import MediaPreviewPanel from '../components/MediaPreviewPanel';
 import PricingPage from './PricingPage';
 import BalancePage from './BalancePage';
 import SubscriptionPage from './SubscriptionPage';
@@ -13,7 +13,18 @@ import UserPage from './UserPage';
 import SkillsPage from './SkillsPage';
 import ApiKeysPage from './ApiKeysPage';
 import { MODELS, SKILLS } from '../data/skills';
-import { chatStream, deleteSession, getSessionMessages, listModels, listSessions, listSkills, pinSession } from '../lib/api';
+import {
+  absolutizeUrl,
+  chatStream,
+  deleteSession,
+  getLatestMessage,
+  getSessionMessages,
+  getVideoTask,
+  listModels,
+  listSessions,
+  listSkills,
+  pinSession,
+} from '../lib/api';
 import type { Attachment, MediaBlock, Message, Session, ThinkingDepth, View } from '../types';
 import { uid } from '../lib/utils';
 
@@ -22,6 +33,19 @@ function buildMessageWithAttachments(text: string, attachments: Attachment[]): s
     .map((a) => `- ${a.name}（upload_id: ${a.uploadId}，url: ${a.url}）`)
     .join('\n');
   return [text.trim(), 'Reference attachments:', refs].filter(Boolean).join('\n\n');
+}
+
+/** Union of two media lists, keyed by URL, keeping the current order first. */
+function mergeMedia(current: MediaBlock[] | undefined, extra: MediaBlock[]): MediaBlock[] | undefined {
+  if (extra.length === 0) return current;
+  const merged = [...(current ?? [])];
+  const seen = new Set(merged.map((block) => block.url));
+  for (const block of extra) {
+    if (seen.has(block.url)) continue;
+    seen.add(block.url);
+    merged.push(block);
+  }
+  return merged.length ? merged : undefined;
 }
 
 export default function ChatPage() {
@@ -44,11 +68,14 @@ export default function ChatPage() {
   const [loadingSessions, setLoadingSessions] = useState(false);
   // Bumped on every conversation change so the composer drops its attachments.
   const [composerKey, setComposerKey] = useState(0);
-  // Image shown in the right-hand preview panel; null keeps the chat full width.
-  const [previewImage, setPreviewImage] = useState<MediaBlock | null>(null);
+  // Asset shown in the right-hand preview panel; null keeps the chat full width.
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   const abortRef = useRef<AbortController | null>(null);
   const streamingRef = useRef(false);
+  // Bumped whenever the conversation is abandoned. A late history reconciliation
+  // must not write its result into a conversation the reader has moved on from.
+  const conversationVersionRef = useRef(0);
 
   // Catalogue (anonymous). On failure keep the fallback snapshot. Also used by the
   // account menu after a skill is renamed / disabled / deleted so the composer's
@@ -88,6 +115,7 @@ export default function ChatPage() {
       setSessions([]);
       setMessages([]);
       setActiveId(null);
+      setPreviewUrl(null);
     }
   }, [user, refreshSessions]);
 
@@ -117,6 +145,7 @@ export default function ChatPage() {
   }, [isLoading, user, openLogin]);
 
   const cancelStream = useCallback(() => {
+    conversationVersionRef.current += 1;
     abortRef.current?.abort();
     abortRef.current = null;
     streamingRef.current = false;
@@ -125,7 +154,7 @@ export default function ChatPage() {
 
   const newChat = useCallback(() => {
     cancelStream();
-    setPreviewImage(null);
+    setPreviewUrl(null);
     setActiveId(null);
     setMessages([]);
     setSelectedSkills([]);
@@ -139,7 +168,7 @@ export default function ChatPage() {
   const selectSession = useCallback(
     async (id: string) => {
       cancelStream();
-      setPreviewImage(null);
+      setPreviewUrl(null);
       setActiveId(id);
       // Different conversation ⇒ the composer starts clean (no stale attachments).
       if (id !== activeId) setComposerKey((v) => v + 1);
@@ -178,6 +207,7 @@ export default function ChatPage() {
         setActiveId(null);
         setMessages([]);
         setThinkingDepth('medium');
+        setPreviewUrl(null);
         setComposerKey((v) => v + 1);
       }
       toast('Conversation deleted');
@@ -209,6 +239,7 @@ export default function ChatPage() {
       const userMsg: Message = { id: uid(), role: 'user', content, createdAt: Date.now() };
       const asstId = uid();
       const asstMsg: Message = { id: asstId, role: 'assistant', content: '', streaming: true, createdAt: Date.now() };
+      const version = conversationVersionRef.current;
       setMessages((prev) => [...prev, userMsg, asstMsg]);
       setDraft('');
       streamingRef.current = true;
@@ -219,8 +250,75 @@ export default function ChatPage() {
 
       let acc = '';
       const media: MediaBlock[] = [];
+      const videoTaskIds: string[] = [];
       const patch = (extra: Partial<Message>) => {
         setMessages((prev) => prev.map((m) => (m.id === asstId ? { ...m, ...extra } : m)));
+      };
+
+      // SSE media events are best-effort: a dropped event leaves the message with
+      // text but no image, and the asset only lives in the saved blocks. Once the
+      // turn is persisted, top up the local message from those blocks.
+      const reconcileMedia = async (sessionId: string): Promise<MediaBlock[]> => {
+        for (let attempt = 0; attempt < 4; attempt += 1) {
+          if (attempt > 0) await new Promise((resolve) => setTimeout(resolve, 400 * attempt));
+          if (version !== conversationVersionRef.current || controller.signal.aborted) return [];
+          const last = await getLatestMessage(sessionId).catch(() => null);
+          if (!last || last.role !== 'assistant') continue;
+          if (version !== conversationVersionRef.current || controller.signal.aborted) return [];
+          const persisted = last.media ?? [];
+          setMessages((prev) =>
+            prev.map((m) => {
+              if (m.id !== asstId) return m;
+              const merged = mergeMedia(m.media, persisted);
+              return {
+                ...m,
+                ...(m.content ? {} : { content: last.content }),
+                ...(merged ? { media: merged } : {}),
+              };
+            }),
+          );
+          return persisted;
+        }
+        return [];
+      };
+
+      // A video Skill can hand back a task_id instead of a file (long renders
+      // time out). The turn then ends with no video block, but the task keeps
+      // running server-side — follow it and attach the finished video.
+      const pollVideoTasks = async (taskIds: string[]) => {
+        const pending = new Set(taskIds);
+        const deadline = Date.now() + 6 * 60 * 1000;
+        let delay = 4000;
+        while (pending.size > 0 && Date.now() < deadline) {
+          await new Promise((resolve) => setTimeout(resolve, delay));
+          delay = Math.min(delay * 1.5, 30000);
+          if (version !== conversationVersionRef.current || controller.signal.aborted) return;
+          for (const taskId of [...pending]) {
+            const task = await getVideoTask(taskId).catch(() => null);
+            if (!task) {
+              // Not a generations task (e.g. watermark removal) — stop here.
+              pending.delete(taskId);
+              continue;
+            }
+            if (task.status === 'completed' && task.video_url) {
+              const block: MediaBlock = {
+                type: 'video',
+                url: absolutizeUrl(String(task.video_url)),
+                filename: `video-${taskId}.mp4`,
+              };
+              setMessages((prev) =>
+                prev.map((m) => {
+                  if (m.id !== asstId) return m;
+                  const merged = mergeMedia(m.media, [block]);
+                  return merged ? { ...m, media: merged } : m;
+                }),
+              );
+              pending.delete(taskId);
+            } else if (task.status === 'failed' || task.status === 'cancelled') {
+              pending.delete(taskId);
+            }
+          }
+        }
       };
 
       try {
@@ -232,7 +330,7 @@ export default function ChatPage() {
               patch({ content: acc, media: [...media] });
             },
             onMedia: (b) => {
-              media.push(b);
+              if (!media.some((m) => m.url === b.url)) media.push(b);
               patch({ content: acc, media: [...media] });
             },
             onDone: (payload) => {
@@ -251,6 +349,9 @@ export default function ChatPage() {
             onStepDone: (info) => {
               patch({ stepCompleted: info.completed, stepTotal: info.total });
             },
+            onVideoTask: (task) => {
+              if (!videoTaskIds.includes(task.task_id)) videoTaskIds.push(task.task_id);
+            },
           },
           controller.signal,
         );
@@ -259,6 +360,13 @@ export default function ChatPage() {
         if (sessionId) {
           setActiveId(sessionId);
           refreshSessions();
+          void (async () => {
+            const persisted = await reconcileMedia(sessionId);
+            // Poll only when the turn produced no video at all; otherwise the
+            // task's file was already collected and polling would duplicate it.
+            const hasVideo = [...media, ...persisted].some((block) => block.type === 'video');
+            if (videoTaskIds.length > 0 && !hasVideo) void pollVideoTasks(videoTaskIds);
+          })();
         }
       } catch (e) {
         if (controller.signal.aborted) return;
@@ -346,6 +454,24 @@ export default function ChatPage() {
   const activeTitle = activeId ? sessions.find((s) => s.id === activeId)?.title ?? '' : '';
   const selectableSkills = useMemo(() => skills.filter((s) => s.isActive !== false), [skills]);
 
+  // Every previewable asset in the conversation, in message order. The panel
+  // uses this list for its tabs; the clicked tile only picks the active one.
+  const gallery = useMemo(() => {
+    const seen = new Set<string>();
+    const items: MediaBlock[] = [];
+    for (const message of messages) {
+      for (const block of message.media ?? []) {
+        if (block.type !== 'image' && block.type !== 'video') continue;
+        if (!block.url || seen.has(block.url)) continue;
+        seen.add(block.url);
+        items.push(block);
+      }
+    }
+    return items;
+  }, [messages]);
+
+  const openMediaPreview = useCallback((block: MediaBlock) => setPreviewUrl(block.url), []);
+
   return (
     <div className="flex h-full overflow-hidden">
       <Sidebar
@@ -374,7 +500,7 @@ export default function ChatPage() {
           onDraftChange={setDraft}
           onSend={(t, a) => void sendMessage(t, a)}
           onConfirmSelect={handleConfirmSelect}
-          onPreviewImage={setPreviewImage}
+          onPreviewMedia={openMediaPreview}
           authenticated={!!user}
           onRequestLogin={openLogin}
           skills={selectableSkills}
@@ -408,8 +534,13 @@ export default function ChatPage() {
       ) : (
         <ApiKeysPage onBack={() => go('chat')} onOpenNav={() => setMobileNavOpen(true)} />
       )}
-      {view === 'chat' && previewImage ? (
-        <ImagePreviewPanel image={previewImage} onClose={() => setPreviewImage(null)} />
+      {view === 'chat' && previewUrl && gallery.length ? (
+        <MediaPreviewPanel
+          items={gallery}
+          activeUrl={previewUrl}
+          onSelect={setPreviewUrl}
+          onClose={() => setPreviewUrl(null)}
+        />
       ) : null}
     </div>
   );

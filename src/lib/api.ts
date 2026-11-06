@@ -1,6 +1,6 @@
 import axios, { AxiosHeaders } from 'axios';
 import type { InternalAxiosRequestConfig } from 'axios';
-import type { ApiKeyListData, BalanceInfo, BillingState, ConfirmPrompt, CreatedApiKey, MediaBlock, ModelOption, PlanStep, PointTransaction, Session, Skill, ThinkingDepth, UserInfo } from '../types';
+import type { ApiKeyListData, BalanceInfo, BillingState, ConfirmPrompt, CreatedApiKey, MediaBlock, Message, ModelOption, PlanStep, PointTransaction, Session, Skill, ThinkingDepth, UserInfo } from '../types';
 import { emojiFor } from '../data/skills';
 
 const API_BASE =
@@ -298,6 +298,40 @@ interface BackendMessage {
   role: string;
   content: string;
   created_at?: string;
+  metadata?: { blocks?: unknown };
+}
+
+function inferMediaType(filename: string, url: string): MediaBlock['type'] {
+  const name = (filename || url).split('?')[0].split('#')[0].toLowerCase();
+  if (/\.(png|jpe?g|gif|webp|bmp|svg|avif)$/.test(name)) return 'image';
+  if (/\.(mp4|webm|mov|m4v|avi|mkv)$/.test(name)) return 'video';
+  return 'file';
+}
+
+/**
+ * Media blocks are the authoritative record of generated assets. The final SSE
+ * payload's `files` array omits `type`, so fall back to the extension there.
+ */
+export function mediaFromBlocks(blocks: unknown): MediaBlock[] {
+  if (!Array.isArray(blocks)) return [];
+  const media: MediaBlock[] = [];
+  const seen = new Set<string>();
+  for (const raw of blocks) {
+    if (!raw || typeof raw !== 'object') continue;
+    const block = raw as Record<string, unknown>;
+    const url = String(block.url ?? '');
+    if (!url) continue;
+    const filename = block.filename ? String(block.filename) : undefined;
+    const type =
+      block.type === 'image' || block.type === 'video' || block.type === 'file'
+        ? block.type
+        : inferMediaType(filename ?? '', url);
+    const absolute = absolutizeUrl(url);
+    if (seen.has(absolute)) continue;
+    seen.add(absolute);
+    media.push({ type, url: absolute, filename });
+  }
+  return media;
 }
 
 export async function listSessions(): Promise<Session[]> {
@@ -313,16 +347,42 @@ export async function listSessions(): Promise<Session[]> {
   }));
 }
 
-export async function getSessionMessages(sessionId: string): Promise<import('../types').Message[]> {
-  const res = (await http.get(`/agents/sessions/${sessionId}/messages`)) as unknown as {
-    messages?: BackendMessage[];
-  };
-  return (res?.messages ?? []).map((m) => ({
+function mapBackendMessage(m: BackendMessage): Message {
+  const media = mediaFromBlocks(m.metadata?.blocks);
+  return {
     id: m.message_id,
     role: m.role === 'user' ? 'user' : 'assistant',
     content: absolutizeMarkdownLinks(m.content || ''),
     createdAt: m.created_at ? new Date(m.created_at).getTime() : Date.now(),
-  }));
+    ...(media.length ? { media } : {}),
+  };
+}
+
+export async function getSessionMessages(sessionId: string): Promise<Message[]> {
+  const res = (await http.get(`/agents/sessions/${sessionId}/messages`)) as unknown as {
+    messages?: BackendMessage[];
+  };
+  return (res?.messages ?? []).map(mapBackendMessage);
+}
+
+/**
+ * The newest persisted message, or null when the assistant turn has not been
+ * written yet. Used after a stream ends to recover the media blocks even when
+ * the SSE media events were dropped. Requests the last row directly so long
+ * conversations are not truncated by the history endpoint's default page size.
+ */
+export async function getLatestMessage(sessionId: string): Promise<Message | null> {
+  const path = `/agents/sessions/${sessionId}/messages`;
+  const head = (await http.get(path, { params: { limit: 1, offset: 0 } })) as unknown as {
+    total?: number;
+  };
+  const total = Number(head?.total ?? 0);
+  if (total <= 0) return null;
+  const res = (await http.get(path, { params: { limit: 1, offset: total - 1 } })) as unknown as {
+    messages?: BackendMessage[];
+  };
+  const last = res?.messages?.[0];
+  return last ? mapBackendMessage(last) : null;
 }
 
 export async function deleteSession(sessionId: string): Promise<void> {
@@ -388,14 +448,38 @@ export interface ChatStreamHandlers {
   onConfirm?: (prompt: ConfirmPrompt) => void;
   onPlan?: (steps: PlanStep[]) => void;
   onStepDone?: (info: { completed: number; total: number }) => void;
+  /** An async video task was submitted; its output arrives later. */
+  onVideoTask?: (task: { task_id: string }) => void;
   onDone: (payload: { content?: string; session_id?: string }) => void;
   onError: (message: string) => void;
+}
+
+export interface VideoTaskStatus {
+  status?: string;
+  progress?: number;
+  video_url?: string | null;
+  error_msg?: string | null;
+}
+
+/** Status of an async video generation task (skills submit these). */
+export async function getVideoTask(taskId: string): Promise<VideoTaskStatus | null> {
+  const res = (await http.get(`/video/generations/${encodeURIComponent(taskId)}`)) as unknown as {
+    data?: VideoTaskStatus;
+  };
+  return res?.data ?? null;
+}
+
+function emitMedia(block: MediaBlock, handlers: ChatStreamHandlers, seenMedia: Set<string>) {
+  if (!block.url || seenMedia.has(block.url)) return;
+  seenMedia.add(block.url);
+  handlers.onMedia(block);
 }
 
 function parseSseEvent(
   raw: string,
   handlers: ChatStreamHandlers,
   onSession: (sessionId: string) => void,
+  seenMedia: Set<string>,
 ) {
   let eventName: string | null = null;
   const dataLines: string[] = [];
@@ -435,6 +519,12 @@ function parseSseEvent(
     handlers.onStepDone?.({ completed: Number(p.completed ?? 0), total: Number(p.total ?? 0) });
     return;
   }
+  if (eventName === 'video_task') {
+    const t = data as Record<string, unknown>;
+    const taskId = t.task_id ? String(t.task_id) : '';
+    if (taskId) handlers.onVideoTask?.({ task_id: taskId });
+    return;
+  }
   if (eventName) return;
 
   const obj = data as Record<string, unknown>;
@@ -447,14 +537,22 @@ function parseSseEvent(
     return;
   }
   if (obj.type === 'image' || obj.type === 'video' || obj.type === 'file') {
-    handlers.onMedia({
-      type: obj.type,
-      url: absolutizeUrl(String(obj.url ?? '')),
-      filename: obj.filename ? String(obj.filename) : undefined,
-    });
+    emitMedia(
+      {
+        type: obj.type,
+        url: absolutizeUrl(String(obj.url ?? '')),
+        filename: obj.filename ? String(obj.filename) : undefined,
+      },
+      handlers,
+      seenMedia,
+    );
     return;
   }
   // Final payload: { content, done, session_id, blocks, files, usage }.
+  // Media events normally arrive first; blocks/files are the fallback that
+  // guarantees an image still shows when those events were missed.
+  for (const block of mediaFromBlocks(obj.blocks)) emitMedia(block, handlers, seenMedia);
+  for (const block of mediaFromBlocks(obj.files)) emitMedia(block, handlers, seenMedia);
   if (obj.session_id) onSession(String(obj.session_id));
   handlers.onDone({
     content: obj.content ? String(obj.content) : undefined,
@@ -517,6 +615,7 @@ export async function chatStream(
   const reader = res.body!.getReader();
   const decoder = new TextDecoder();
   let buffer = '';
+  const seenMedia = new Set<string>();
 
   const onSession = (sid: string) => {
     finalSessionId = sid;
@@ -528,9 +627,9 @@ export async function chatStream(
     buffer += decoder.decode(value, { stream: true });
     const parts = buffer.split('\n\n');
     buffer = parts.pop() || '';
-    for (const part of parts) parseSseEvent(part, handlers, onSession);
+    for (const part of parts) parseSseEvent(part, handlers, onSession, seenMedia);
   }
-  if (buffer.trim()) parseSseEvent(buffer, handlers, onSession);
+  if (buffer.trim()) parseSseEvent(buffer, handlers, onSession, seenMedia);
 
   return finalSessionId;
 }
