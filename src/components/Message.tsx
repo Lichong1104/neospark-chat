@@ -1,8 +1,9 @@
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Check, FileText } from 'lucide-react';
+import { Check, FileText, Maximize2, Play } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
-import type { Message as ChatMessage } from '../types';
+import type { MediaBlock, Message as ChatMessage } from '../types';
+import { assetExtension, normalizeMessageContent } from '../lib/media';
 import { cn } from '../lib/utils';
 
 function RingMark({ className }: { className?: string }) {
@@ -47,10 +48,12 @@ function ThinkingDots() {
 export function Message({
   message,
   onConfirmSelect,
+  onPreview,
   disabled = false,
 }: {
   message: ChatMessage;
   onConfirmSelect: (option: string) => void;
+  onPreview: (asset: MediaBlock) => void;
   disabled?: boolean;
 }) {
   if (message.role === 'user') {
@@ -66,8 +69,8 @@ export function Message({
     );
   }
 
-  const media = message.media ?? [];
-  const showThinking = message.streaming && !message.content && media.length === 0;
+  const { text: displayContent, media } = normalizeMessageContent(message.content, message.media ?? []);
+  const showThinking = message.streaming && !displayContent && media.length === 0;
 
   return (
     <div className="animate-fade-up flex items-start gap-3">
@@ -75,7 +78,7 @@ export function Message({
         <RingMark className="h-4 w-4" />
       </div>
       <div className="min-w-0 flex-1 space-y-3">
-        {message.content ? (
+        {displayContent ? (
           <div className="markdown-body">
             <ReactMarkdown
               remarkPlugins={[remarkGfm]}
@@ -87,7 +90,7 @@ export function Message({
                 ),
               }}
             >
-              {message.content}
+              {displayContent}
             </ReactMarkdown>
           </div>
         ) : showThinking ? (
@@ -95,33 +98,75 @@ export function Message({
         ) : null}
 
         {media.length > 0 ? (
-          <div className={cn('grid gap-3', media.length === 1 ? '' : 'grid-cols-2')}>
-            {media.map((block, i) => {
+          <div className="flex flex-wrap items-start gap-2">
+            {media.map((block) => {
               if (block.type === 'image') {
                 return (
-                  <img
-                    key={i}
-                    src={block.url}
-                    alt={block.filename || 'Generated image'}
-                    loading="lazy"
-                    className="w-full rounded-xl border border-line-soft object-cover"
-                  />
+                  <button
+                    key={block.url}
+                    type="button"
+                    onClick={() => onPreview(block)}
+                    aria-label={`Preview ${block.filename || 'image'}`}
+                    className="group relative h-28 w-28 overflow-hidden rounded-lg border border-line-soft bg-paper transition-colors hover:border-ink sm:h-32 sm:w-32"
+                  >
+                    <img
+                      src={block.url}
+                      alt={block.filename || 'Generated image'}
+                      loading="lazy"
+                      className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-105"
+                    />
+                    <span className="absolute inset-0 grid place-items-center bg-ink/0 text-surface opacity-0 transition-all group-hover:bg-ink/30 group-hover:opacity-100">
+                      <Maximize2 className="h-4 w-4" />
+                    </span>
+                  </button>
                 );
               }
               if (block.type === 'video') {
-                return <video key={i} src={block.url} controls className="w-full rounded-xl border border-line-soft" />;
+                return (
+                  <button
+                    key={block.url}
+                    type="button"
+                    onClick={() => onPreview(block)}
+                    aria-label={`Preview ${block.filename || 'video'}`}
+                    className="group relative h-28 w-28 overflow-hidden rounded-lg border border-line-soft bg-ink sm:h-32 sm:w-32"
+                  >
+                    <video
+                      src={`${block.url}#t=0.1`}
+                      muted
+                      playsInline
+                      preload="metadata"
+                      className="pointer-events-none h-full w-full object-cover"
+                    />
+                    <span className="absolute inset-0 grid place-items-center bg-ink/25 transition-colors group-hover:bg-ink/40">
+                      <span className="flex h-8 w-8 items-center justify-center rounded-full bg-surface/90 text-ink shadow-card">
+                        <Play className="h-3.5 w-3.5 fill-ink" />
+                      </span>
+                    </span>
+                  </button>
+                );
               }
+              const ext = assetExtension(block.url) || assetExtension(block.filename ?? '');
               return (
-                <a
-                  key={i}
-                  href={block.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-2 rounded-xl border border-line-soft bg-paper px-3 py-2 text-sm font-medium text-ink-2 transition-colors hover:border-ink"
+                <button
+                  key={block.url}
+                  type="button"
+                  onClick={() => onPreview(block)}
+                  aria-label={`Preview ${block.filename || 'file'}`}
+                  className="group flex w-56 max-w-full items-center gap-2 rounded-lg border border-line-soft bg-paper px-2.5 py-2 text-left transition-colors hover:border-ink"
                 >
-                  <FileText className="h-4 w-4 flex-none text-muted-2" />
-                  <span className="truncate">{block.filename || 'Download file'}</span>
-                </a>
+                  <span className="flex h-8 w-8 flex-none items-center justify-center rounded-md bg-line-soft text-muted-2">
+                    <FileText className="h-4 w-4" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-semibold text-ink-2">
+                      {block.filename || 'Generated file'}
+                    </span>
+                    <span className="block text-micro font-bold uppercase tracking-[0.12em] text-muted-2">
+                      {ext || 'FILE'}
+                    </span>
+                  </span>
+                  <Maximize2 className="h-3.5 w-3.5 flex-none text-muted-2 opacity-0 transition-opacity group-hover:opacity-100" />
+                </button>
               );
             })}
           </div>
@@ -181,7 +226,7 @@ export function Message({
           </div>
         ) : null}
 
-        {message.streaming && message.content ? <span className="stream-cursor" /> : null}
+        {message.streaming && displayContent ? <span className="stream-cursor" /> : null}
       </div>
     </div>
   );

@@ -292,11 +292,19 @@ interface BackendSession {
   pinned?: boolean;
 }
 
+interface BackendBlock {
+  type?: string;
+  url?: string;
+  filename?: string;
+  mime?: string;
+}
+
 interface BackendMessage {
   message_id: string;
   role: string;
   content: string;
   created_at?: string;
+  metadata?: { blocks?: BackendBlock[] } | null;
 }
 
 export async function listSessions(): Promise<Session[]> {
@@ -315,12 +323,27 @@ export async function getSessionMessages(sessionId: string): Promise<import('../
   const res = (await http.get(`/agents/sessions/${sessionId}/messages`)) as unknown as {
     messages?: BackendMessage[];
   };
-  return (res?.messages ?? []).map((m) => ({
-    id: m.message_id,
-    role: m.role === 'user' ? 'user' : 'assistant',
-    content: absolutizeMarkdownLinks(m.content || ''),
-    createdAt: m.created_at ? new Date(m.created_at).getTime() : Date.now(),
-  }));
+  return (res?.messages ?? []).map((m) => {
+    const media = (m.metadata?.blocks ?? []).flatMap((block) => {
+      if (!block.url) return [];
+      if (block.type !== 'image' && block.type !== 'video' && block.type !== 'file') return [];
+      return [
+        {
+          type: block.type,
+          url: absolutizeUrl(block.url),
+          filename: block.filename || undefined,
+          mime: block.mime || undefined,
+        } as MediaBlock,
+      ];
+    });
+    return {
+      id: m.message_id,
+      role: m.role === 'user' ? ('user' as const) : ('assistant' as const),
+      content: absolutizeMarkdownLinks(m.content || ''),
+      ...(media.length > 0 ? { media } : {}),
+      createdAt: m.created_at ? new Date(m.created_at).getTime() : Date.now(),
+    };
+  });
 }
 
 export async function deleteSession(sessionId: string): Promise<void> {
@@ -449,6 +472,7 @@ function parseSseEvent(
       type: obj.type,
       url: absolutizeUrl(String(obj.url ?? '')),
       filename: obj.filename ? String(obj.filename) : undefined,
+      mime: obj.mime ? String(obj.mime) : undefined,
     });
     return;
   }

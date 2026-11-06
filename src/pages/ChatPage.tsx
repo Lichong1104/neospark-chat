@@ -4,6 +4,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import Sidebar from '../components/Sidebar';
 import ChatArea from '../components/ChatArea';
+import PreviewPanel from '../components/PreviewPanel';
 import PricingPage from './PricingPage';
 import BalancePage from './BalancePage';
 import SubscriptionPage from './SubscriptionPage';
@@ -42,6 +43,8 @@ export default function ChatPage() {
   const [loadingSessions, setLoadingSessions] = useState(false);
   // Bumped on every conversation change so the composer drops its attachments.
   const [composerKey, setComposerKey] = useState(0);
+  // Asset shown in the right-hand preview panel; null keeps the chat full width.
+  const [preview, setPreview] = useState<MediaBlock | null>(null);
 
   const abortRef = useRef<AbortController | null>(null);
   const streamingRef = useRef(false);
@@ -84,6 +87,7 @@ export default function ChatPage() {
       setSessions([]);
       setMessages([]);
       setActiveId(null);
+      setPreview(null);
     }
   }, [user, refreshSessions]);
 
@@ -124,6 +128,7 @@ export default function ChatPage() {
     setActiveId(null);
     setMessages([]);
     setSelectedSkills([]);
+    setPreview(null);
     setDraft('');
     setComposerKey((v) => v + 1);
     navigate('/');
@@ -132,6 +137,7 @@ export default function ChatPage() {
   const selectSession = useCallback(
     async (id: string) => {
       cancelStream();
+      setPreview(null);
       setActiveId(id);
       // Different conversation ⇒ the composer starts clean (no stale attachments).
       if (id !== activeId) setComposerKey((v) => v + 1);
@@ -168,6 +174,7 @@ export default function ChatPage() {
         cancelStream();
         setActiveId(null);
         setMessages([]);
+        setPreview(null);
         setComposerKey((v) => v + 1);
       }
       toast('Conversation deleted');
@@ -354,27 +361,31 @@ export default function ChatPage() {
         onCloseMobile={() => setMobileNavOpen(false)}
       />
       {view === 'chat' ? (
-        <ChatArea
-          title={activeTitle}
-          contextLabel={contextLabel}
-          messages={messages}
-          streaming={streaming}
-          loadingHistory={loadingHistory}
-          draft={draft}
-          onDraftChange={setDraft}
-          onSend={(t, a) => void sendMessage(t, a)}
-          onConfirmSelect={handleConfirmSelect}
-          authenticated={!!user}
-          onRequestLogin={openLogin}
-          skills={selectableSkills}
-          selectedSkills={selectedSkills}
-          onToggleSkill={toggleSkill}
-          models={models}
-          model={model}
-          onModelChange={setModel}
-          composerKey={composerKey}
-          onOpenNav={() => setMobileNavOpen(true)}
-        />
+        <>
+          <ChatArea
+            title={activeTitle}
+            contextLabel={contextLabel}
+            messages={messages}
+            streaming={streaming}
+            loadingHistory={loadingHistory}
+            draft={draft}
+            onDraftChange={setDraft}
+            onSend={(t, a) => void sendMessage(t, a)}
+            onConfirmSelect={handleConfirmSelect}
+            onPreview={setPreview}
+            authenticated={!!user}
+            onRequestLogin={openLogin}
+            skills={selectableSkills}
+            selectedSkills={selectedSkills}
+            onToggleSkill={toggleSkill}
+            models={models}
+            model={model}
+            onModelChange={setModel}
+            composerKey={composerKey}
+            onOpenNav={() => setMobileNavOpen(true)}
+          />
+          {preview ? <PreviewPanel asset={preview} onClose={() => setPreview(null)} /> : null}
+        </>
       ) : view === 'pricing' ? (
         <PricingPage onBack={() => go('chat')} onOpenNav={() => setMobileNavOpen(true)} />
       ) : view === 'balance' ? (

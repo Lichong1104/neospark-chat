@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowDown, ArrowUp, Check, ChevronDown, FileText, Loader2, Menu, Paperclip, Plus, Search, Sparkles, X } from 'lucide-react';
 import { toast } from 'sonner';
-import type { Attachment, Message as ChatMessage, ModelOption, Skill } from '../types';
+import type { Attachment, MediaBlock, Message as ChatMessage, ModelOption, Skill } from '../types';
 import { Message } from './Message';
 import Eyebrow from './Eyebrow';
 import { uploadFile } from '../lib/api';
@@ -17,6 +17,7 @@ interface ChatAreaProps {
   onDraftChange: (text: string) => void;
   onSend: (text: string, attachments: Attachment[]) => void;
   onConfirmSelect: (option: string) => void;
+  onPreview: (asset: MediaBlock) => void;
   authenticated: boolean;
   onRequestLogin: () => void;
   skills: Skill[];
@@ -96,6 +97,7 @@ export default function ChatArea({
   onDraftChange,
   onSend,
   onConfirmSelect,
+  onPreview,
   authenticated,
   onRequestLogin,
   skills,
@@ -538,7 +540,13 @@ export default function ChatArea({
           ) : (
             <div className="mx-auto flex w-full max-w-6xl flex-col gap-5 sm:gap-6">
               {messages.map((m) => (
-                <Message key={m.id} message={m} onConfirmSelect={onConfirmSelect} disabled={streaming} />
+                <Message
+                  key={m.id}
+                  message={m}
+                  onConfirmSelect={onConfirmSelect}
+                  onPreview={onPreview}
+                  disabled={streaming}
+                />
               ))}
             </div>
           )}

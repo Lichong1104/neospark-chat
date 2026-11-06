@@ -45,6 +45,7 @@ export interface MediaBlock {
   type: 'image' | 'video' | 'file';
   url: string;
   filename?: string;
+  mime?: string;
 }
 
 /** A confirmation the Skill asks for (e.g. image aspect ratio, a parameter choice). */
