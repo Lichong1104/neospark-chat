@@ -226,6 +226,21 @@ body {
 .thinking-dots span:nth-child(3) {
   animation-delay: 0.3s;
 }
+/* Composer hint: a soft blink so the shortcut reminder catches the eye without
+   competing with the conversation. */
+@keyframes hint-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
+.hint-blink {
+  animation: hint-blink 1.8s ease-in-out infinite;
+}
+
 @keyframes dot-bounce {
   0%,
   60%,

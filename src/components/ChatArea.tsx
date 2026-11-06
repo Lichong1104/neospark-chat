@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowDown, ArrowUp, Check, ChevronDown, FileText, Loader2, Menu, Paperclip, Plus, Search, Sparkles, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, Check, ChevronDown, FileText, Loader2, Menu, Paperclip, Search, Sparkles, X } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Attachment, MediaBlock, Message as ChatMessage, ModelOption, Skill } from '../types';
 import { Message } from './Message';
@@ -648,20 +648,10 @@ export default function ChatArea({
               title="Select a skill"
               className="flex h-10 flex-none items-center gap-1 rounded-xl px-2.5 text-sm font-semibold text-muted-2 transition-colors hover:bg-line-soft hover:text-ink disabled:cursor-not-allowed disabled:opacity-40"
             >
-              <Plus className="h-4 w-4" />
+              <Sparkles className="h-4 w-4" />
               Skill
             </button>
             <div className="relative min-w-0 flex-1">
-              {!draft && !streaming && (
-                <span
-                  className={cn(
-                    'pointer-events-none absolute left-2 text-base leading-relaxed text-muted-2',
-                    authenticated ? 'top-1.5' : 'bottom-1.5',
-                  )}
-                >
-                  {authenticated ? 'Message NeoSpark… use @ to mention a skill or file' : 'Sign in to start chatting…'}
-                </span>
-              )}
               <div
                 ref={editorRef}
                 contentEditable={!streaming}
@@ -800,7 +790,9 @@ export default function ChatArea({
           </div>
 
           <div className="mt-2 flex items-center justify-between text-xs text-muted-2">
-            <span>{authenticated ? 'Enter to send · @ to mention a skill or file' : 'Not signed in — sign in to send'}</span>
+            <span className={authenticated ? 'hint-blink' : undefined}>
+              {authenticated ? 'Enter to send · @ to mention a skill or file' : 'Not signed in — sign in to send'}
+            </span>
             <span>{streaming ? 'Generating…' : contextLabel}</span>
           </div>
         </div>
