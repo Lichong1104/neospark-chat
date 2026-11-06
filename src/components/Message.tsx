@@ -1,8 +1,8 @@
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Check, FileText } from 'lucide-react';
+import { Check, FileText, Maximize2 } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
-import type { Message as ChatMessage } from '../types';
+import type { MediaBlock, Message as ChatMessage } from '../types';
 import { cn } from '../lib/utils';
 
 function RingMark({ className }: { className?: string }) {
@@ -47,16 +47,18 @@ function ThinkingDots() {
 export function Message({
   message,
   onConfirmSelect,
+  onPreviewImage,
   disabled = false,
 }: {
   message: ChatMessage;
   onConfirmSelect: (option: string) => void;
+  onPreviewImage: (image: MediaBlock) => void;
   disabled?: boolean;
 }) {
   if (message.role === 'user') {
     return (
       <div className="animate-fade-up flex justify-end gap-2.5">
-        <div className="max-w-[88%] rounded-2xl rounded-br-md bg-ink px-4 py-3 shadow-[0_1px_2px_rgba(10,10,10,.16),0_10px_22px_-10px_rgba(10,10,10,.5)] sm:max-w-[75%]">
+        <div className="max-w-[88%] rounded-2xl rounded-br-md bg-ink px-4 py-3 shadow-[0_1px_2px_rgba(10,10,10,.12),0_6px_16px_-8px_rgba(10,10,10,.3)] sm:max-w-[75%]">
           <p className="whitespace-pre-wrap break-words text-base leading-relaxed text-surface">
             {message.content}
           </p>
@@ -95,17 +97,37 @@ export function Message({
         ) : null}
 
         {media.length > 0 ? (
-          <div className={cn('grid gap-3', media.length === 1 ? '' : 'grid-cols-2')}>
+          <div className={cn('grid gap-3', media.length === 1 ? 'justify-items-start' : 'grid-cols-2 sm:grid-cols-3')}>
             {media.map((block, i) => {
               if (block.type === 'image') {
+                const single = media.length === 1;
                 return (
-                  <img
+                  <button
                     key={i}
-                    src={block.url}
-                    alt={block.filename || 'Generated image'}
-                    loading="lazy"
-                    className="w-full rounded-xl border border-line-soft object-cover"
-                  />
+                    type="button"
+                    onClick={() => onPreviewImage(block)}
+                    aria-label={`Preview ${block.filename || 'image'}`}
+                    className={cn(
+                      'group relative block cursor-zoom-in overflow-hidden rounded-xl border border-line-soft bg-paper',
+                      single ? 'max-w-full' : 'aspect-square w-full',
+                    )}
+                  >
+                    <img
+                      src={block.url}
+                      alt={block.filename || 'Generated image'}
+                      loading="lazy"
+                      className={cn(
+                        'block transition-transform duration-300 group-hover:scale-[1.02]',
+                        single ? 'max-h-60 w-auto max-w-full object-contain' : 'h-full w-full object-cover',
+                      )}
+                    />
+                    <span className="pointer-events-none absolute inset-0 flex items-center justify-center bg-ink/0 opacity-0 transition-opacity duration-200 group-hover:bg-ink/15 group-hover:opacity-100">
+                      <span className="flex items-center gap-1 rounded-full bg-surface/90 px-2.5 py-1 text-xs font-semibold text-ink shadow-card">
+                        <Maximize2 className="h-3 w-3" />
+                        View
+                      </span>
+                    </span>
+                  </button>
                 );
               }
               if (block.type === 'video') {
@@ -146,7 +168,7 @@ export function Message({
                     <span
                       className={cn(
                         'mt-0.5 flex h-4 w-4 flex-none items-center justify-center rounded-full text-micro font-bold',
-                        done ? 'bg-ink text-surface' : active ? 'bg-orange/20 text-orange-ink' : 'bg-line-soft text-muted-2',
+                        done ? 'bg-ink text-surface' : active ? 'bg-orange/25 text-orange-ink ring-1 ring-orange/30' : 'bg-line-soft text-muted-2',
                       )}
                     >
                       {done ? <Check className="h-3 w-3" /> : i + 1}

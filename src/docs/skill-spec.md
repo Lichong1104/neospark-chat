@@ -41,7 +41,7 @@ Frontmatter sits between two `---` delimiters at the start of SKILL.md. Only `id
 | `name` | Optional | Skill ID | Public display name shown in the catalogue and on the Skill page. |
 | `description` | Optional | Empty string | Short public summary of what the Skill does and when to use it. |
 | `version` | Optional | `0.0.0` | Semantic version in major.minor.patch form. |
-| `model` | Optional | `gemini:gemini-4-argon` | Default model used when the Skill runs. |
+| `model` | Optional | `gemini:tengda-gemini-pro` | Default model used when the Skill runs. |
 | `tools` | Optional | `[]` | Platform tool names available to the Skill. |
 | `dependencies` | Optional | `[]` | IDs of other Skills this Skill depends on. |
 
@@ -73,7 +73,7 @@ id: concise-product-copy
 name: Concise Product Copy
 description: Rewrite product descriptions into clear, concise English.
 version: 1.0.0
-model: gemini:gemini-4-argon
+model: gemini:tengda-gemini-pro
 tools: []
 dependencies: []
 ---

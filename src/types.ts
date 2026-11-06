@@ -36,9 +36,13 @@ export interface CreatedApiKey extends ApiKeyItem {
   api_key: string;
 }
 
+export type ThinkingDepth = 'low' | 'medium' | 'high';
+
 export interface ModelOption {
   id: string;
   label: string;
+  /** Whether the model supports a configurable thinking/reasoning depth. */
+  supportsThinking?: boolean;
 }
 
 export interface MediaBlock {
@@ -92,6 +96,8 @@ export interface Session {
   title: string;
   skillIds: string[];
   model: string | null;
+  /** Thinking depth persisted for this session, if the model supports it. */
+  thinkingDepth?: ThinkingDepth;
   pinned: boolean;
   updatedAt: number;
 }

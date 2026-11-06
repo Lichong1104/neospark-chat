@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowDown, ArrowUp, Check, ChevronDown, FileText, Loader2, Menu, Paperclip, Plus, Search, Sparkles, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, Check, ChevronDown, FileText, Loader2, Menu, Paperclip, Search, Sparkles, X } from 'lucide-react';
 import { toast } from 'sonner';
-import type { Attachment, Message as ChatMessage, ModelOption, Skill } from '../types';
+import type { Attachment, MediaBlock, Message as ChatMessage, ModelOption, Skill, ThinkingDepth } from '../types';
 import { Message } from './Message';
 import Eyebrow from './Eyebrow';
 import { uploadFile } from '../lib/api';
@@ -17,6 +17,7 @@ interface ChatAreaProps {
   onDraftChange: (text: string) => void;
   onSend: (text: string, attachments: Attachment[]) => void;
   onConfirmSelect: (option: string) => void;
+  onPreviewImage: (image: MediaBlock) => void;
   authenticated: boolean;
   onRequestLogin: () => void;
   skills: Skill[];
@@ -25,6 +26,8 @@ interface ChatAreaProps {
   models: ModelOption[];
   model: string;
   onModelChange: (id: string) => void;
+  thinkingDepth: ThinkingDepth;
+  onThinkingDepthChange: (depth: ThinkingDepth) => void;
   /** Bumped whenever the conversation changes (new chat / switch / delete). */
   composerKey: number;
   onOpenNav: () => void;
@@ -96,6 +99,7 @@ export default function ChatArea({
   onDraftChange,
   onSend,
   onConfirmSelect,
+  onPreviewImage,
   authenticated,
   onRequestLogin,
   skills,
@@ -104,6 +108,8 @@ export default function ChatArea({
   models,
   model,
   onModelChange,
+  thinkingDepth,
+  onThinkingDepthChange,
   composerKey,
   onOpenNav,
 }: ChatAreaProps) {
@@ -223,6 +229,7 @@ export default function ChatArea({
   }, [slashIndex, slashOpen]);
 
   const modelLabel = model ? models.find((m) => m.id === model)?.label ?? model : 'Model';
+  const supportsThinking = models.find((m) => m.id === model)?.supportsThinking ?? false;
 
   const filteredItems = useMemo<SlashItem[]>(() => {
     const q = slashQuery.trim().toLowerCase();
@@ -516,19 +523,18 @@ export default function ChatArea({
             <div className="mx-auto flex max-w-3xl flex-col items-center pt-[10vh] text-center">
               <Eyebrow>NeoSpark Conversation</Eyebrow>
               <h1 className="mt-6 text-2xl font-bold leading-[1.15] tracking-[-0.03em] sm:text-display">
-                One conversation, all your Skills
+                One chat, all your skills
               </h1>
               <p className="mt-3 max-w-lg text-base leading-relaxed text-muted">
-                Pick one or more skills and a model below the input, then describe the result you want.
-                Once connected, the skill's real output streams back here.
+                Choose a skill and a model, then tell NeoSpark what you want.
               </p>
-              <div className="mt-8 flex flex-wrap justify-center gap-2">
+              <div className="mt-8 flex flex-col items-stretch gap-2 sm:flex-row sm:flex-wrap sm:justify-center">
                 {SUGGESTIONS.map((s) => (
                   <button
                     key={s}
                     type="button"
                     onClick={() => (authenticated ? onSend(s, []) : onRequestLogin())}
-                    className="min-h-10 rounded-full border border-line bg-surface px-4 py-2 text-sm font-medium text-muted shadow-card transition-colors hover:border-ink hover:text-ink"
+                    className="min-h-10 w-full rounded-full border border-line bg-surface px-4 py-2 text-sm font-medium text-muted shadow-card transition-colors hover:border-ink hover:text-ink sm:w-auto"
                   >
                     {s}
                   </button>
@@ -538,7 +544,13 @@ export default function ChatArea({
           ) : (
             <div className="mx-auto flex w-full max-w-6xl flex-col gap-5 sm:gap-6">
               {messages.map((m) => (
-                <Message key={m.id} message={m} onConfirmSelect={onConfirmSelect} disabled={streaming} />
+                <Message
+                  key={m.id}
+                  message={m}
+                  onConfirmSelect={onConfirmSelect}
+                  onPreviewImage={onPreviewImage}
+                  disabled={streaming}
+                />
               ))}
             </div>
           )}
@@ -640,17 +652,12 @@ export default function ChatArea({
               title="Select a skill"
               className="flex h-10 flex-none items-center gap-1 rounded-xl px-2.5 text-sm font-semibold text-muted-2 transition-colors hover:bg-line-soft hover:text-ink disabled:cursor-not-allowed disabled:opacity-40"
             >
-              <Plus className="h-4 w-4" />
+              <Sparkles className="h-4 w-4" />
               Skill
             </button>
             <div className="relative min-w-0 flex-1">
               {!draft && !streaming && (
-                <span
-                  className={cn(
-                    'pointer-events-none absolute left-2 text-base leading-relaxed text-muted-2',
-                    authenticated ? 'top-1.5' : 'bottom-1.5',
-                  )}
-                >
+                <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-base leading-relaxed text-muted-2">
                   {authenticated ? 'Message NeoSpark… use @ to mention a skill or file' : 'Sign in to start chatting…'}
                 </span>
               )}
@@ -661,7 +668,7 @@ export default function ChatArea({
                 onInput={handleEditorInput}
                 onKeyDown={handleKeyDown}
                 className={cn(
-                  'max-h-56 min-h-36 overflow-y-auto whitespace-pre-wrap break-words px-2 py-1.5 text-base leading-relaxed outline-none sm:max-h-72',
+                  'max-h-56 min-h-20 overflow-y-auto whitespace-pre-wrap break-words px-2 py-1.5 text-base leading-relaxed outline-none sm:max-h-72',
                   streaming && 'cursor-not-allowed opacity-60',
                 )}
               />
@@ -702,6 +709,27 @@ export default function ChatArea({
                 </div>
               )}
             </div>
+            {supportsThinking && (
+              <div className="flex flex-none items-center gap-0.5 rounded-xl border border-line bg-surface p-0.5">
+                {(['low', 'medium', 'high'] as ThinkingDepth[]).map((d) => (
+                  <button
+                    key={d}
+                    type="button"
+                    onClick={() => onThinkingDepthChange(d)}
+                    disabled={streaming}
+                    className={cn(
+                      'h-8 rounded-lg px-2 text-xs font-semibold capitalize transition-colors',
+                      thinkingDepth === d
+                        ? 'bg-ink text-surface'
+                        : 'text-muted-2 hover:bg-line-soft hover:text-ink',
+                      streaming && 'cursor-not-allowed opacity-40',
+                    )}
+                  >
+                    {d}
+                  </button>
+                ))}
+              </div>
+            )}
             <button
               type="button"
               onClick={send}
@@ -724,7 +752,7 @@ export default function ChatArea({
 
             {/* @ mention menu: skills (and, when typed "@", the attached files) */}
             {slashOpen && (
-              <div ref={slashRef} className="absolute bottom-full left-0 right-0 z-30 mb-1 max-h-64 overflow-y-auto rounded-xl border border-line bg-surface p-1 shadow-panel">
+              <div ref={slashRef} className="absolute bottom-full left-0 right-0 z-30 mb-2 max-h-64 w-full max-w-md overflow-y-auto rounded-xl border border-line bg-surface p-1 shadow-panel sm:left-0 sm:right-auto">
                 <div className="flex items-center gap-2 px-2.5 py-2 text-xs font-bold uppercase tracking-[0.14em] text-muted-2">
                   <Search className="h-3.5 w-3.5" />
                   {mentionMode === 'select' ? 'Select a skill' : 'Mention a skill or file'}
