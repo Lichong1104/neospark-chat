@@ -538,7 +538,7 @@ export default function ChatArea({
               </div>
             </div>
           ) : (
-            <div className="mx-auto flex w-full max-w-6xl flex-col gap-5 sm:gap-6">
+            <div className="mx-auto flex w-full max-w-5xl flex-col gap-5 sm:gap-6 lg:w-2/3">
               {messages.map((m) => (
                 <Message
                   key={m.id}
