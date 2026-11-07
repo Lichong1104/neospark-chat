@@ -79,11 +79,23 @@ function ClaudeMark({ className }: { className?: string }) {
   );
 }
 
+function DeepSeekMark({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="#4d6bfe" aria-hidden="true">
+      <path d="M7 10.2 2 6.4c-.5-.3-1 .2-.8.7l1.8 4.9c.1.2.1.4 0 .6l-1.8 4.9c-.2.5.3 1 .8.7L7 15.8Z" />
+      <rect x="6.4" y="8.2" width="15.6" height="9.6" rx="4.8" />
+      <path d="M11.6 17.4l2.6 3c.25.3.75.1.75-.35V17.4Z" />
+      <circle cx="17.8" cy="12.2" r="1" fill="#fff" />
+    </svg>
+  );
+}
+
 function ModelIcon({ modelId, className }: { modelId: string; className?: string }) {
   const provider = modelId.split(':')[0];
   if (provider === 'gemini') return <GeminiMark className={className} />;
   if (provider === 'openai') return <OpenAiMark className={className} />;
   if (provider === 'anthropic') return <ClaudeMark className={className} />;
+  if (provider === 'deepseek') return <DeepSeekMark className={className} />;
   return <Sparkles className={className} />;
 }
 
