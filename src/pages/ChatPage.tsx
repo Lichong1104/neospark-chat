@@ -17,6 +17,8 @@ import { chatStream, deleteSession, getSessionMessages, listModels, listSessions
 import type { Attachment, MediaBlock, Message, Session, View } from '../types';
 import { uid } from '../lib/utils';
 
+const DEFAULT_MODEL = 'anthropic:claude-opus-5';
+
 function buildMessageWithAttachments(text: string, attachments: Attachment[]): string {
   const refs = attachments
     .map((a) => `- ${a.name}（upload_id: ${a.uploadId}，url: ${a.url}）`)
@@ -35,7 +37,7 @@ export default function ChatPage() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
-  const [model, setModel] = useState('gemini:gemini-4-argon');
+  const [model, setModel] = useState(DEFAULT_MODEL);
   const [draft, setDraft] = useState('');
   const [pendingAuto, setPendingAuto] = useState<{ skill: string; message: string } | null>(null);
   const [streaming, setStreaming] = useState(false);
@@ -68,7 +70,13 @@ export default function ChatPage() {
   useEffect(() => {
     refreshSkills();
     listModels()
-      .then((m) => m.length && setModels(m))
+      .then((m) => {
+        if (!m.length) return;
+        setModels(m);
+        setModel((prev) =>
+          m.some((x) => x.id === prev) ? prev : m.find((x) => x.id === DEFAULT_MODEL)?.id ?? m[0].id,
+        );
+      })
       .catch(() => {});
   }, [refreshSkills]);
 
@@ -144,7 +152,7 @@ export default function ChatPage() {
       const s = sessions.find((x) => x.id === id);
       if (s) {
         setSelectedSkills(s.skillIds);
-        setModel(s.model ?? '');
+        setModel(s.model && models.some((m) => m.id === s.model) ? s.model : DEFAULT_MODEL);
       }
       setLoadingHistory(true);
       try {
@@ -155,7 +163,7 @@ export default function ChatPage() {
         setLoadingHistory(false);
       }
     },
-    [cancelStream, sessions, activeId],
+    [cancelStream, sessions, activeId, models],
   );
 
   const toggleSkill = useCallback((id: string) => {
