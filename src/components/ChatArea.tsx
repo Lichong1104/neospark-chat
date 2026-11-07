@@ -653,33 +653,8 @@ export default function ChatArea({
           )}
 
           {/* Input shell */}
-          <div className="relative flex items-end gap-1.5 rounded-2xl border border-line bg-surface p-2 shadow-card transition-colors focus-within:border-ink">
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploading || streaming}
-              className="flex h-10 w-10 flex-none items-center justify-center rounded-xl text-muted-2 transition-colors hover:bg-line-soft hover:text-ink disabled:cursor-not-allowed disabled:opacity-40"
-              aria-label="Add attachment"
-              title="Add attachment"
-            >
-              <Paperclip className="h-4 w-4" />
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setMentionMode('select');
-                setSlashOpen(true);
-                setSlashQuery('');
-                setSlashIndex(0);
-              }}
-              disabled={streaming}
-              title="Select a skill"
-              className="flex h-10 flex-none items-center gap-1 rounded-xl px-2.5 text-sm font-semibold text-muted-2 transition-colors hover:bg-line-soft hover:text-ink disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              <Sparkles className="h-4 w-4" />
-              Skill
-            </button>
-            <div className="relative min-w-0 flex-1">
+          <div className="relative flex flex-col gap-1.5 rounded-2xl border border-line bg-surface p-2 shadow-card transition-colors focus-within:border-ink">
+            <div className="relative min-w-0">
               <div
                 ref={editorRef}
                 contentEditable={!streaming}
@@ -692,51 +667,79 @@ export default function ChatArea({
                 )}
               />
             </div>
-            <div className="relative flex-none" ref={modelRef}>
+            <div className="flex items-center gap-1.5">
               <button
                 type="button"
-                onClick={() => setModelOpen((v) => !v)}
-                disabled={streaming}
-                className="flex h-10 items-center gap-1.5 rounded-xl px-2.5 text-sm font-semibold text-muted-2 transition-colors hover:bg-line-soft hover:text-ink disabled:cursor-not-allowed disabled:opacity-40"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading || streaming}
+                className="flex h-10 w-10 flex-none items-center justify-center rounded-xl text-muted-2 transition-colors hover:bg-line-soft hover:text-ink disabled:cursor-not-allowed disabled:opacity-40"
+                aria-label="Add attachment"
+                title="Add attachment"
               >
-                <ModelIcon modelId={model} className="h-4 w-4 flex-none" />
-                {modelLabel}
-                <ChevronDown className={cn('h-3.5 w-3.5 transition-transform', modelOpen && 'rotate-180')} />
+                <Paperclip className="h-4 w-4" />
               </button>
-              {modelOpen && (
-                <div className="absolute bottom-full right-0 z-30 mb-1 w-52 overflow-hidden rounded-xl border border-line bg-surface p-1 shadow-panel">
-                  {models.map((m) => (
-                    <button
-                      key={m.id}
-                      type="button"
-                      onClick={() => {
-                        onModelChange(m.id);
-                        setModelOpen(false);
-                      }}
-                      className={cn(
-                        'flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-left text-sm font-semibold transition-colors',
-                        model === m.id ? 'bg-line-soft text-ink' : 'text-ink-2 hover:bg-paper',
-                      )}
-                    >
-                      <span className="flex min-w-0 items-center gap-2">
-                        <ModelIcon modelId={m.id} className="h-4 w-4 flex-none" />
-                        {m.label}
-                      </span>
-                      {model === m.id && <Check className="h-3.5 w-3.5 flex-none text-orange-ink" />}
-                    </button>
-                  ))}
-                </div>
-              )}
+              <button
+                type="button"
+                onClick={() => {
+                  setMentionMode('select');
+                  setSlashOpen(true);
+                  setSlashQuery('');
+                  setSlashIndex(0);
+                }}
+                disabled={streaming}
+                title="Select a skill"
+                className="flex h-10 flex-none items-center gap-1 rounded-xl px-2.5 text-sm font-semibold text-muted-2 transition-colors hover:bg-line-soft hover:text-ink disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <Sparkles className="h-4 w-4" />
+                Skill
+              </button>
+              <div className="min-w-0 flex-1" />
+              <div className="relative flex-none" ref={modelRef}>
+                <button
+                  type="button"
+                  onClick={() => setModelOpen((v) => !v)}
+                  disabled={streaming}
+                  className="flex h-10 items-center gap-1.5 rounded-xl px-2.5 text-sm font-semibold text-muted-2 transition-colors hover:bg-line-soft hover:text-ink disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <ModelIcon modelId={model} className="h-4 w-4 flex-none" />
+                  {modelLabel}
+                  <ChevronDown className={cn('h-3.5 w-3.5 transition-transform', modelOpen && 'rotate-180')} />
+                </button>
+                {modelOpen && (
+                  <div className="absolute bottom-full right-0 z-30 mb-1 w-52 overflow-hidden rounded-xl border border-line bg-surface p-1 shadow-panel">
+                    {models.map((m) => (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => {
+                          onModelChange(m.id);
+                          setModelOpen(false);
+                        }}
+                        className={cn(
+                          'flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-left text-sm font-semibold transition-colors',
+                          model === m.id ? 'bg-line-soft text-ink' : 'text-ink-2 hover:bg-paper',
+                        )}
+                      >
+                        <span className="flex min-w-0 items-center gap-2">
+                          <ModelIcon modelId={m.id} className="h-4 w-4 flex-none" />
+                          {m.label}
+                        </span>
+                        {model === m.id && <Check className="h-3.5 w-3.5 flex-none text-orange-ink" />}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={send}
+                disabled={(!draft.trim() && attachments.length === 0) || streaming}
+                aria-label="Send"
+                className="flex h-10 w-10 flex-none items-center justify-center rounded-full bg-ink text-surface shadow-[0_1px_2px_rgba(10,10,10,.3),0_8px_18px_-8px_rgba(10,10,10,.5)] transition-transform duration-200 hover:scale-105 disabled:scale-100 disabled:opacity-30"
+              >
+                <ArrowUp className="h-4 w-4" />
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={send}
-              disabled={(!draft.trim() && attachments.length === 0) || streaming}
-              aria-label="Send"
-              className="flex h-10 w-10 flex-none items-center justify-center rounded-full bg-ink text-surface shadow-[0_1px_2px_rgba(10,10,10,.3),0_8px_18px_-8px_rgba(10,10,10,.5)] transition-transform duration-200 hover:scale-105 disabled:scale-100 disabled:opacity-30"
-            >
-              <ArrowUp className="h-4 w-4" />
-            </button>
             <input
               ref={fileInputRef}
               type="file"
