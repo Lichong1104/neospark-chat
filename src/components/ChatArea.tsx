@@ -81,11 +81,27 @@ function ClaudeMark({ className }: { className?: string }) {
 
 function DeepSeekMark({ className }: { className?: string }) {
   return (
-    <svg viewBox="0 0 24 24" className={className} fill="#4d6bfe" aria-hidden="true">
-      <path d="M7 10.2 2 6.4c-.5-.3-1 .2-.8.7l1.8 4.9c.1.2.1.4 0 .6l-1.8 4.9c-.2.5.3 1 .8.7L7 15.8Z" />
-      <rect x="6.4" y="8.2" width="15.6" height="9.6" rx="4.8" />
-      <path d="M11.6 17.4l2.6 3c.25.3.75.1.75-.35V17.4Z" />
-      <circle cx="17.8" cy="12.2" r="1" fill="#fff" />
+    <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
+      <path
+        fill="#4d6bfe"
+        d="M15.1 11.4c1.3-2.5 3.5-5.1 6-6.6.5-.3 1.1.1.9.7l-1.7 5.4c2 .1 2.3.6 1.9 1.1-1.6 1.6-3.9 2.6-6.3 2.8Z"
+      />
+      <path
+        fill="#4d6bfe"
+        d="M3 14.2c0-4.4 3.8-8 8.6-8 2.3 0 4.4.9 6 2.4.8.7 1.2 1.6 1 2.7-.2 1.1-.9 2-1.9 2.6-1.4.9-3.1 1.3-4.8 1.3H7.2C4.9 15.2 3 13.7 3 11.7Z"
+      />
+      <path
+        fill="#4d6bfe"
+        d="M9.6 15.1c.3 1.7 1.1 3 2.3 3.9.2.2.4-.1.3-.3-.4-1.1-.5-2.4-.2-3.6Z"
+      />
+      <circle cx="6.8" cy="11.4" r=".95" fill="#fff" />
+      <path
+        d="M3.6 13.2c1.5 1 3.3 1.5 5.2 1.5"
+        fill="none"
+        stroke="#fff"
+        strokeWidth=".8"
+        strokeLinecap="round"
+      />
     </svg>
   );
 }
