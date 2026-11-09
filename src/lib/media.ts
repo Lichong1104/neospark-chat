@@ -61,6 +61,25 @@ export function previewKind(asset: MediaBlock): PreviewKind {
   return 'other';
 }
 
+/** Download an asset as a file, even when it lives on another origin (S3). */
+export async function downloadAsset(asset: MediaBlock): Promise<void> {
+  const res = await fetch(asset.url, { credentials: 'omit' });
+  if (!res.ok) throw new Error(`Download failed (${res.status})`);
+  const blob = await res.blob();
+  const objectUrl = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = objectUrl;
+  anchor.download =
+    asset.filename?.trim() ||
+    decodeURIComponent(assetPath(asset.url).split('/').pop() ?? '') ||
+    'download';
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  // Keep the blob URL alive while the browser streams the download to disk.
+  setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+}
+
 export async function fetchAssetText(url: string, signal?: AbortSignal): Promise<string> {
   const res = await fetch(url, { credentials: 'omit', signal });
   if (!res.ok) throw new Error(`Unable to load file (${res.status})`);

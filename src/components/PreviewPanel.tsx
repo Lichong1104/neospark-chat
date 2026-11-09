@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { ExternalLink, FileText, Loader2, X } from 'lucide-react';
+import { Download, ExternalLink, FileText, Loader2, X } from 'lucide-react';
 import type { MediaBlock } from '../types';
-import { assetExtension, fetchAssetText, previewKind } from '../lib/media';
+import { assetExtension, downloadAsset, fetchAssetText, previewKind } from '../lib/media';
 import type { PreviewKind } from '../lib/media';
 
 const MIN_PREVIEW_WIDTH = 320;
@@ -140,6 +140,18 @@ export default function PreviewPanel({
           </p>
           <p className="truncate text-sm font-semibold text-ink">{label}</p>
         </div>
+        <button
+          type="button"
+          onClick={() => {
+            // Cross-origin URLs ignore <a download>, so fetch the blob first.
+            downloadAsset(asset).catch(() => window.open(asset.url, '_blank', 'noopener'));
+          }}
+          className="icon-btn"
+          title="Download"
+          aria-label="Download"
+        >
+          <Download className="h-4 w-4" />
+        </button>
         <a
           href={asset.url}
           target="_blank"
