@@ -1,10 +1,14 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { ExternalLink, FileText, Loader2, X } from 'lucide-react';
 import type { MediaBlock } from '../types';
 import { assetExtension, fetchAssetText, previewKind } from '../lib/media';
 import type { PreviewKind } from '../lib/media';
+
+const MIN_PREVIEW_WIDTH = 320;
+const MAX_PREVIEW_WIDTH = 960;
+const MIN_CHAT_WIDTH = 360;
 
 const KIND_LABEL: Record<PreviewKind, string> = {
   image: 'Image',
@@ -31,6 +35,38 @@ export default function PreviewPanel({
   const kind = previewKind(asset);
   const [text, setText] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Horizontal splitter: drag the divider to widen/narrow the panel. Bounds keep
+  // both the panel and the chat column usable.
+  const [width, setWidth] = useState<number | null>(null);
+  const [resizing, setResizing] = useState(false);
+  const panelRef = useRef<HTMLElement>(null);
+  const drag = useRef<{ x: number; width: number; max: number } | null>(null);
+
+  const startResize = (e: React.PointerEvent<HTMLButtonElement>) => {
+    const rect = panelRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    e.preventDefault();
+    const chat = panelRef.current?.previousElementSibling as HTMLElement | null;
+    const spare = Math.max(0, (chat?.getBoundingClientRect().width ?? 0) - MIN_CHAT_WIDTH);
+    drag.current = {
+      x: e.clientX,
+      width: rect.width,
+      max: Math.min(MAX_PREVIEW_WIDTH, rect.width + spare),
+    };
+    setResizing(true);
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+  const moveResize = (e: React.PointerEvent<HTMLButtonElement>) => {
+    const current = drag.current;
+    if (!current) return;
+    setWidth(Math.min(current.max, Math.max(MIN_PREVIEW_WIDTH, current.width - (e.clientX - current.x))));
+  };
+  const endResize = (e: React.PointerEvent<HTMLButtonElement>) => {
+    drag.current = null;
+    setResizing(false);
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
+  };
 
   const ext = assetExtension(asset.url) || assetExtension(asset.filename ?? '');
   const label = asset.filename || `Generated ${kind === 'other' ? 'file' : kind}`;
@@ -73,9 +109,27 @@ export default function PreviewPanel({
 
   return (
     <aside
+      ref={panelRef}
       aria-label="File preview"
-      className="fixed inset-0 z-50 flex flex-col bg-surface lg:static lg:z-auto lg:h-full lg:w-[clamp(22rem,40vw,44rem)] lg:flex-none lg:border-l lg:border-line"
+      style={width ? { width: `${width}px` } : undefined}
+      className="fixed inset-0 z-50 flex flex-col bg-surface max-lg:!w-full lg:relative lg:z-auto lg:h-full lg:w-[clamp(22rem,40vw,44rem)] lg:flex-none lg:border-l lg:border-line"
     >
+      <button
+        type="button"
+        aria-label="Resize preview"
+        title="Drag to resize"
+        onPointerDown={startResize}
+        onPointerMove={moveResize}
+        onPointerUp={endResize}
+        onPointerCancel={endResize}
+        className="group absolute left-0 top-0 z-20 hidden h-full w-2 -translate-x-1/2 cursor-col-resize touch-none select-none lg:block"
+      >
+        <span
+          className={`pointer-events-none absolute inset-y-0 left-1/2 w-0.5 -translate-x-1/2 rounded-full transition-colors ${
+            resizing ? 'bg-orange' : 'bg-transparent group-hover:bg-muted-2'
+          }`}
+        />
+      </button>
       <header className="flex items-center gap-1.5 border-b border-line px-3 py-2.5 sm:px-4">
         <div className="min-w-0 flex-1">
           <p className="text-xs font-bold uppercase tracking-[0.12em] text-muted-2">
