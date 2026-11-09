@@ -1,10 +1,79 @@
+import { useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Check, FileText, Maximize2, Play } from 'lucide-react';
+import { Check, FileText, Maximize2, MoveHorizontal, Play } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import type { MediaBlock, Message as ChatMessage } from '../types';
 import { assetExtension, normalizeMessageContent } from '../lib/media';
 import { cn } from '../lib/utils';
+
+const MIN_MEDIA_SIZE = 112;
+const MAX_MEDIA_SIZE = 448;
+
+/* Inline image/video thumbnail. A corner grip resizes it horizontally between
+   the bounds above, so large renders can be inspected without opening the
+   preview panel. */
+function MediaThumb({
+  block,
+  kind,
+  onPreview,
+  children,
+}: {
+  block: MediaBlock;
+  kind: 'image' | 'video';
+  onPreview: (asset: MediaBlock) => void;
+  children: React.ReactNode;
+}) {
+  const [size, setSize] = useState(128);
+  const [dragging, setDragging] = useState(false);
+  const drag = useRef<{ x: number; size: number } | null>(null);
+
+  const startDrag = (e: React.PointerEvent<HTMLButtonElement>) => {
+    drag.current = { x: e.clientX, size };
+    setDragging(true);
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+  const dragMove = (e: React.PointerEvent<HTMLButtonElement>) => {
+    if (!drag.current) return;
+    setSize(
+      Math.min(MAX_MEDIA_SIZE, Math.max(MIN_MEDIA_SIZE, drag.current.size + (e.clientX - drag.current.x))),
+    );
+  };
+  const endDrag = (e: React.PointerEvent<HTMLButtonElement>) => {
+    drag.current = null;
+    setDragging(false);
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
+  };
+
+  return (
+    <div className="group relative max-w-full" style={{ width: size, height: size }}>
+      <button
+        type="button"
+        onClick={() => onPreview(block)}
+        aria-label={`Preview ${block.filename || kind}`}
+        className={cn(
+          'h-full w-full overflow-hidden rounded-lg border border-line-soft bg-paper transition-colors hover:border-ink',
+          kind === 'video' && 'bg-ink',
+        )}
+      >
+        {children}
+      </button>
+      <button
+        type="button"
+        aria-label="Resize"
+        title="Drag to resize"
+        onPointerDown={startDrag}
+        onPointerMove={dragMove}
+        onPointerUp={endDrag}
+        onPointerCancel={endDrag}
+        style={dragging ? { opacity: 1 } : undefined}
+        className="hover-reveal absolute bottom-1 right-1 z-10 flex h-6 w-6 cursor-ew-resize touch-none items-center justify-center rounded-md bg-ink/60 text-surface transition-opacity hover:bg-ink/80"
+      >
+        <MoveHorizontal className="h-3.5 w-3.5" />
+      </button>
+    </div>
+  );
+}
 
 function RingMark({ className }: { className?: string }) {
   return (
@@ -102,13 +171,7 @@ export function Message({
             {media.map((block) => {
               if (block.type === 'image') {
                 return (
-                  <button
-                    key={block.url}
-                    type="button"
-                    onClick={() => onPreview(block)}
-                    aria-label={`Preview ${block.filename || 'image'}`}
-                    className="group relative h-28 w-28 overflow-hidden rounded-lg border border-line-soft bg-paper transition-colors hover:border-ink sm:h-32 sm:w-32"
-                  >
+                  <MediaThumb key={block.url} block={block} kind="image" onPreview={onPreview}>
                     <img
                       src={block.url}
                       alt={block.filename || 'Generated image'}
@@ -118,18 +181,12 @@ export function Message({
                     <span className="absolute inset-0 grid place-items-center bg-ink/0 text-surface opacity-0 transition-all group-hover:bg-ink/30 group-hover:opacity-100">
                       <Maximize2 className="h-4 w-4" />
                     </span>
-                  </button>
+                  </MediaThumb>
                 );
               }
               if (block.type === 'video') {
                 return (
-                  <button
-                    key={block.url}
-                    type="button"
-                    onClick={() => onPreview(block)}
-                    aria-label={`Preview ${block.filename || 'video'}`}
-                    className="group relative h-28 w-28 overflow-hidden rounded-lg border border-line-soft bg-ink sm:h-32 sm:w-32"
-                  >
+                  <MediaThumb key={block.url} block={block} kind="video" onPreview={onPreview}>
                     <video
                       src={`${block.url}#t=0.1`}
                       muted
@@ -142,7 +199,7 @@ export function Message({
                         <Play className="h-3.5 w-3.5 fill-ink" />
                       </span>
                     </span>
-                  </button>
+                  </MediaThumb>
                 );
               }
               const ext = assetExtension(block.url) || assetExtension(block.filename ?? '');
