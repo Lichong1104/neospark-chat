@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowDown, ArrowUp, Check, ChevronDown, FileText, Loader2, Menu, Paperclip, Search, Sparkles, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, Check, ChevronDown, Copy, FileText, Link2, Loader2, Menu, Paperclip, Search, Share2, Sparkles, X } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Attachment, MediaBlock, Message as ChatMessage, ModelOption, Skill } from '../types';
 import { Message } from './Message';
 import Eyebrow from './Eyebrow';
 import { uploadFile } from '../lib/api';
+import type { ShareStatus } from '../lib/api';
 import { cn, uid } from '../lib/utils';
 
 interface ChatAreaProps {
@@ -29,6 +30,11 @@ interface ChatAreaProps {
   /** Bumped whenever the conversation changes (new chat / switch / delete). */
   composerKey: number;
   onOpenNav: () => void;
+  /** Public share state of the active conversation; shared=false when nothing is shared. */
+  shareInfo: ShareStatus;
+  onShareClick: () => void;
+  onCopyLink: () => void;
+  onDisableShare: () => void;
 }
 
 const SUGGESTIONS = [
@@ -136,6 +142,10 @@ export default function ChatArea({
   onModelChange,
   composerKey,
   onOpenNav,
+  shareInfo,
+  onShareClick,
+  onCopyLink,
+  onDisableShare,
 }: ChatAreaProps) {
   const listRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<HTMLDivElement>(null);
@@ -148,6 +158,8 @@ export default function ChatArea({
   const [uploading, setUploading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const [modelOpen, setModelOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
+  const shareRef = useRef<HTMLDivElement>(null);
   const [slashOpen, setSlashOpen] = useState(false);
   const [slashQuery, setSlashQuery] = useState('');
   const [slashIndex, setSlashIndex] = useState(0);
@@ -230,6 +242,22 @@ export default function ChatArea({
       document.removeEventListener('keydown', onKey);
     };
   }, [modelOpen]);
+
+  useEffect(() => {
+    if (!shareOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (shareRef.current && !shareRef.current.contains(e.target as Node)) setShareOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setShareOpen(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [shareOpen]);
 
   useEffect(() => {
     if (!slashOpen) return;
@@ -526,6 +554,47 @@ export default function ChatArea({
           <div className="min-w-0 flex-1">
             <div className="truncate text-sm font-bold tracking-tight">{title || 'New chat'}</div>
             <div className="truncate text-xs text-muted-2">{contextLabel || 'Select a skill to start'}</div>
+          </div>
+          <div className="relative flex-none" ref={shareRef}>
+            <button
+              type="button"
+              onClick={() => {
+                if (shareInfo.shared) setShareOpen((v) => !v);
+                else onShareClick();
+              }}
+              disabled={streaming}
+              aria-label="Share conversation"
+              title={shareInfo.shared ? 'Shared publicly — copy link or disable' : 'Share conversation publicly'}
+              className={cn('icon-btn', shareInfo.shared && 'text-orange-ink')}
+            >
+              {shareInfo.shared ? <Link2 className="h-4 w-4" /> : <Share2 className="h-4 w-4" />}
+            </button>
+            {shareInfo.shared && shareOpen && (
+              <div className="absolute right-0 top-full z-30 mt-1 w-48 overflow-hidden rounded-xl border border-line bg-surface p-1 shadow-panel">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShareOpen(false);
+                    onCopyLink();
+                  }}
+                  className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm font-semibold text-ink-2 transition-colors hover:bg-paper"
+                >
+                  <Copy className="h-4 w-4 flex-none" />
+                  Copy link
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShareOpen(false);
+                    onDisableShare();
+                  }}
+                  className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm font-semibold text-ink-2 transition-colors hover:bg-paper"
+                >
+                  <X className="h-4 w-4 flex-none" />
+                  Disable share
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </header>

@@ -319,31 +319,33 @@ export async function listSessions(): Promise<Session[]> {
   }));
 }
 
+function mapBackendMessage(m: BackendMessage): import('../types').Message {
+  const media = (m.metadata?.blocks ?? []).flatMap((block) => {
+    if (!block.url) return [];
+    if (block.type !== 'image' && block.type !== 'video' && block.type !== 'file') return [];
+    return [
+      {
+        type: block.type,
+        url: absolutizeUrl(block.url),
+        filename: block.filename || undefined,
+        mime: block.mime || undefined,
+      } as MediaBlock,
+    ];
+  });
+  return {
+    id: m.message_id,
+    role: m.role === 'user' ? ('user' as const) : ('assistant' as const),
+    content: absolutizeMarkdownLinks(m.content || ''),
+    ...(media.length > 0 ? { media } : {}),
+    createdAt: m.created_at ? new Date(m.created_at).getTime() : Date.now(),
+  };
+}
+
 export async function getSessionMessages(sessionId: string): Promise<import('../types').Message[]> {
   const res = (await http.get(`/agents/sessions/${sessionId}/messages`)) as unknown as {
     messages?: BackendMessage[];
   };
-  return (res?.messages ?? []).map((m) => {
-    const media = (m.metadata?.blocks ?? []).flatMap((block) => {
-      if (!block.url) return [];
-      if (block.type !== 'image' && block.type !== 'video' && block.type !== 'file') return [];
-      return [
-        {
-          type: block.type,
-          url: absolutizeUrl(block.url),
-          filename: block.filename || undefined,
-          mime: block.mime || undefined,
-        } as MediaBlock,
-      ];
-    });
-    return {
-      id: m.message_id,
-      role: m.role === 'user' ? ('user' as const) : ('assistant' as const),
-      content: absolutizeMarkdownLinks(m.content || ''),
-      ...(media.length > 0 ? { media } : {}),
-      createdAt: m.created_at ? new Date(m.created_at).getTime() : Date.now(),
-    };
-  });
+  return (res?.messages ?? []).map(mapBackendMessage);
 }
 
 export async function deleteSession(sessionId: string): Promise<void> {
@@ -352,6 +354,66 @@ export async function deleteSession(sessionId: string): Promise<void> {
 
 export async function pinSession(sessionId: string, pinned: boolean): Promise<void> {
   await http.patch(`/agents/sessions/${encodeURIComponent(sessionId)}/pin`, { pinned });
+}
+
+/* --------------------------------------------------------------- share -- */
+
+export interface ShareStatus {
+  shared: boolean;
+  shareToken?: string;
+  sharedAt?: string;
+}
+
+interface BackendShareStatus {
+  shared?: boolean;
+  share_token?: string | null;
+  shared_at?: string | null;
+}
+
+function mapShareStatus(res: BackendShareStatus): ShareStatus {
+  return {
+    shared: Boolean(res?.shared),
+    ...(res?.share_token ? { shareToken: res.share_token } : {}),
+    ...(res?.shared_at ? { sharedAt: res.shared_at } : {}),
+  };
+}
+
+/** Enable public sharing for a session. Idempotent: returns the existing token if already shared. */
+export async function shareSession(sessionId: string): Promise<ShareStatus> {
+  const res = (await http.post(`/agents/sessions/${encodeURIComponent(sessionId)}/share`)) as BackendShareStatus;
+  return mapShareStatus(res);
+}
+
+export async function unshareSession(sessionId: string): Promise<void> {
+  await http.delete(`/agents/sessions/${encodeURIComponent(sessionId)}/share`);
+}
+
+export async function getShareStatus(sessionId: string): Promise<ShareStatus> {
+  const res = (await http.get(`/agents/sessions/${encodeURIComponent(sessionId)}/share`)) as BackendShareStatus;
+  return mapShareStatus(res);
+}
+
+export interface SharedView {
+  title: string;
+  model: string | null;
+  messages: import('../types').Message[];
+  total: number;
+}
+
+/** Public read-only view of a shared conversation. No auth required. */
+export async function getSharedView(token: string): Promise<SharedView> {
+  const res = (await http.get(`/agents/share/${encodeURIComponent(token)}`)) as unknown as {
+    title?: string;
+    model?: string | null;
+    messages?: BackendMessage[];
+    total?: number;
+  };
+  return {
+    title: res?.title || 'Shared chat',
+    model: res?.model ?? null,
+    messages: (res?.messages ?? []).map(mapBackendMessage),
+    total: res?.total ?? 0,
+  };
 }
 
 /* -------------------------------------------------------------- upload -- */
