@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowDown, Loader2, Sparkles } from 'lucide-react';
+import { ArrowDown, Loader2 } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
 import { Message } from '../components/Message';
 import PreviewPanel from '../components/PreviewPanel';
+import { BrandMark } from '../components/Sidebar';
 import { getSharedView } from '../lib/api';
 import type { MediaBlock, Message as ChatMessage } from '../types';
 
@@ -70,8 +71,8 @@ export default function SharePage() {
       <main className="relative flex h-full min-w-0 flex-1 flex-col">
         <header className="border-b border-line bg-surface/70 px-3 py-2.5 backdrop-blur sm:px-6 sm:py-3">
           <div className="mx-auto flex w-full max-w-6xl items-center gap-1.5 sm:gap-3">
-            <Link to="/" className="flex flex-none items-center gap-1.5 text-sm font-bold tracking-tight text-ink">
-              <Sparkles className="h-4 w-4 text-orange-ink" />
+            <Link to="/" className="flex flex-none items-center gap-2 text-base font-bold leading-tight tracking-tight text-ink">
+              <BrandMark />
               NeoSpark
             </Link>
             <div className="min-w-0 flex-1">
