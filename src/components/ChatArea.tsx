@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowDown, ArrowUp, Check, ChevronDown, Copy, FileText, Link2, Loader2, Menu, Paperclip, Search, Share2, Sparkles, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, Check, ChevronDown, Copy, FileText, Globe, Link2, Loader2, Menu, Paperclip, Search, Share2, Sparkles, X } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Attachment, MediaBlock, Message as ChatMessage, ModelOption, Skill } from '../types';
 import { Message } from './Message';
@@ -32,9 +32,10 @@ interface ChatAreaProps {
   onOpenNav: () => void;
   /** Public share state of the active conversation; shared=false when nothing is shared. */
   shareInfo: ShareStatus;
-  onShareClick: () => void;
-  onCopyLink: () => void;
-  onDisableShare: () => void;
+  onShareClick: () => void | Promise<void>;
+  onCopyLink: () => void | Promise<void>;
+  onDisableShare: () => void | Promise<void>;
+  onToggleIndexing: (indexable: boolean) => void | Promise<void>;
 }
 
 const SUGGESTIONS = [
@@ -121,6 +122,40 @@ function ModelIcon({ modelId, className }: { modelId: string; className?: string
   return <Sparkles className={className} />;
 }
 
+function ShareSwitch({
+  checked,
+  disabled,
+  onChange,
+  label,
+}: {
+  checked: boolean;
+  disabled?: boolean;
+  onChange: () => void;
+  label: string;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      disabled={disabled}
+      onClick={onChange}
+      className={cn(
+        'relative h-6 w-11 flex-none rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-40',
+        checked ? 'bg-ink' : 'bg-line-soft',
+      )}
+    >
+      <span
+        className={cn(
+          'absolute left-0 top-0.5 h-5 w-5 rounded-full bg-surface shadow-card transition-transform',
+          checked ? 'translate-x-[22px]' : 'translate-x-0.5',
+        )}
+      />
+    </button>
+  );
+}
+
 export default function ChatArea({
   title,
   contextLabel,
@@ -146,6 +181,7 @@ export default function ChatArea({
   onShareClick,
   onCopyLink,
   onDisableShare,
+  onToggleIndexing,
 }: ChatAreaProps) {
   const listRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<HTMLDivElement>(null);
@@ -159,6 +195,7 @@ export default function ChatArea({
   const [dragActive, setDragActive] = useState(false);
   const [modelOpen, setModelOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  const [shareBusy, setShareBusy] = useState(false);
   const shareRef = useRef<HTMLDivElement>(null);
   const [slashOpen, setSlashOpen] = useState(false);
   const [slashQuery, setSlashQuery] = useState('');
@@ -493,6 +530,17 @@ export default function ChatArea({
     if (e.dataTransfer.files?.length) void handleFiles(e.dataTransfer.files);
   };
 
+  const shareUrl = shareInfo.shareToken ? `${window.location.origin}/share/${shareInfo.shareToken}` : '';
+
+  const runShareAction = async (action: () => void | Promise<void>) => {
+    setShareBusy(true);
+    try {
+      await action();
+    } finally {
+      setShareBusy(false);
+    }
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (slashOpen) {
       if (e.key === 'Escape') {
@@ -558,41 +606,59 @@ export default function ChatArea({
           <div className="relative flex-none" ref={shareRef}>
             <button
               type="button"
-              onClick={() => {
-                if (shareInfo.shared) setShareOpen((v) => !v);
-                else onShareClick();
-              }}
+              onClick={() => setShareOpen((v) => !v)}
               disabled={streaming}
               aria-label="Share conversation"
-              title={shareInfo.shared ? 'Shared publicly — copy link or disable' : 'Share conversation publicly'}
+              title="Share conversation"
               className={cn('icon-btn', shareInfo.shared && 'text-orange-ink')}
             >
               {shareInfo.shared ? <Link2 className="h-4 w-4" /> : <Share2 className="h-4 w-4" />}
             </button>
-            {shareInfo.shared && shareOpen && (
-              <div className="absolute right-0 top-full z-30 mt-1 w-48 overflow-hidden rounded-xl border border-line bg-surface p-1 shadow-panel">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShareOpen(false);
-                    onCopyLink();
-                  }}
-                  className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm font-semibold text-ink-2 transition-colors hover:bg-paper"
-                >
-                  <Copy className="h-4 w-4 flex-none" />
-                  Copy link
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShareOpen(false);
-                    onDisableShare();
-                  }}
-                  className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm font-semibold text-ink-2 transition-colors hover:bg-paper"
-                >
-                  <X className="h-4 w-4 flex-none" />
-                  Disable share
-                </button>
+            {shareOpen && (
+              <div className="absolute right-0 top-full z-30 mt-1 w-80 rounded-xl border border-line bg-surface p-4 shadow-panel">
+                <div className="flex items-center gap-2.5">
+                  <Globe className="h-5 w-5 flex-none text-muted" />
+                  <span className="flex-1 text-sm font-semibold text-ink">Share to web</span>
+                  <ShareSwitch
+                    checked={shareInfo.shared}
+                    disabled={shareBusy}
+                    label="Share to web"
+                    onChange={() => {
+                      void runShareAction(shareInfo.shared ? onDisableShare : onShareClick);
+                    }}
+                  />
+                </div>
+                <p className="mt-2 text-xs leading-relaxed text-muted-2">
+                  Anyone with the link can view this chat
+                </p>
+                <div className="mt-4 flex items-center gap-2.5">
+                  <Search className="h-5 w-5 flex-none text-muted" />
+                  <span className="flex-1 text-sm font-semibold text-ink">Search engine indexing</span>
+                  <ShareSwitch
+                    checked={shareInfo.shared && shareInfo.indexable}
+                    disabled={!shareInfo.shared || shareBusy}
+                    label="Search engine indexing"
+                    onChange={() => {
+                      void runShareAction(() => onToggleIndexing(!shareInfo.indexable));
+                    }}
+                  />
+                </div>
+                {shareInfo.shared && shareInfo.shareToken && (
+                  <div className="mt-4 flex items-center gap-2 rounded-lg bg-line-soft/60 px-3 py-2">
+                    <span className="min-w-0 flex-1 truncate text-xs text-muted">{shareUrl}</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void runShareAction(onCopyLink);
+                      }}
+                      disabled={shareBusy}
+                      className="flex flex-none items-center gap-1 text-xs font-semibold text-ink-2 transition-colors hover:text-ink disabled:opacity-40"
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                      Copy
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>

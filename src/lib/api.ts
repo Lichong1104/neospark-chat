@@ -362,17 +362,21 @@ export interface ShareStatus {
   shared: boolean;
   shareToken?: string;
   sharedAt?: string;
+  /** Whether search engines may index the shared page. */
+  indexable: boolean;
 }
 
 interface BackendShareStatus {
   shared?: boolean;
   share_token?: string | null;
   shared_at?: string | null;
+  indexable?: boolean;
 }
 
 function mapShareStatus(res: BackendShareStatus): ShareStatus {
   return {
     shared: Boolean(res?.shared),
+    indexable: Boolean(res?.indexable),
     ...(res?.share_token ? { shareToken: res.share_token } : {}),
     ...(res?.shared_at ? { sharedAt: res.shared_at } : {}),
   };
@@ -393,9 +397,18 @@ export async function getShareStatus(sessionId: string): Promise<ShareStatus> {
   return mapShareStatus(res);
 }
 
+/** Toggle search-engine indexing for a shared conversation. Owner only. */
+export async function setShareIndexing(sessionId: string, indexable: boolean): Promise<ShareStatus> {
+  const res = (await http.patch(`/agents/sessions/${encodeURIComponent(sessionId)}/share`, {
+    indexable,
+  })) as BackendShareStatus;
+  return mapShareStatus(res);
+}
+
 export interface SharedView {
   title: string;
   model: string | null;
+  indexable: boolean;
   messages: import('../types').Message[];
   total: number;
 }
@@ -405,12 +418,14 @@ export async function getSharedView(token: string): Promise<SharedView> {
   const res = (await http.get(`/agents/share/${encodeURIComponent(token)}`)) as unknown as {
     title?: string;
     model?: string | null;
+    indexable?: boolean;
     messages?: BackendMessage[];
     total?: number;
   };
   return {
     title: res?.title || 'Shared chat',
     model: res?.model ?? null,
+    indexable: Boolean(res?.indexable),
     messages: (res?.messages ?? []).map(mapBackendMessage),
     total: res?.total ?? 0,
   };

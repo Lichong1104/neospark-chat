@@ -16,6 +16,7 @@ export default function SharePage() {
   const [state, setState] = useState<ViewState>('loading');
   const [title, setTitle] = useState('Shared chat');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [indexable, setIndexable] = useState(false);
   const [preview, setPreview] = useState<MediaBlock | null>(null);
 
   const listRef = useRef<HTMLDivElement>(null);
@@ -31,6 +32,7 @@ export default function SharePage() {
       const view = await getSharedView(token);
       setTitle(view.title);
       setMessages(view.messages);
+      setIndexable(view.indexable);
       setState('ready');
     } catch (e) {
       const status = (e as { response?: { status?: number } })?.response?.status;
@@ -52,6 +54,22 @@ export default function SharePage() {
   useEffect(() => {
     document.title = state === 'ready' ? `${title} — NeoSpark` : 'Shared chat — NeoSpark';
   }, [state, title]);
+
+  // Shared pages stay out of search engines unless the owner explicitly enabled
+  // indexing for this share.
+  useEffect(() => {
+    let meta = document.querySelector<HTMLMetaElement>('meta[name="robots"]');
+    const created = !meta;
+    if (!meta) {
+      meta = document.createElement('meta');
+      meta.name = 'robots';
+      document.head.appendChild(meta);
+    }
+    meta.content = state === 'ready' && indexable ? 'index,follow' : 'noindex,nofollow';
+    return () => {
+      if (created) meta.remove();
+    };
+  }, [state, indexable]);
 
   useEffect(() => {
     const el = listRef.current;

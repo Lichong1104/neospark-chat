@@ -13,7 +13,7 @@ import UserPage from './UserPage';
 import SkillsPage from './SkillsPage';
 import ApiKeysPage from './ApiKeysPage';
 import { MODELS, SKILLS } from '../data/skills';
-import { chatStream, deleteSession, getSessionMessages, getShareStatus, listModels, listSessions, listSkills, pinSession, shareSession, unshareSession } from '../lib/api';
+import { chatStream, deleteSession, getSessionMessages, getShareStatus, listModels, listSessions, listSkills, pinSession, setShareIndexing, shareSession, unshareSession } from '../lib/api';
 import type { ShareStatus } from '../lib/api';
 import type { Attachment, MediaBlock, Message, Session, View } from '../types';
 import { uid } from '../lib/utils';
@@ -49,7 +49,7 @@ export default function ChatPage() {
   // Asset shown in the right-hand preview panel; null keeps the chat full width.
   const [preview, setPreview] = useState<MediaBlock | null>(null);
   // Public share state of the active conversation.
-  const [shareInfo, setShareInfo] = useState<ShareStatus>({ shared: false });
+  const [shareInfo, setShareInfo] = useState<ShareStatus>({ shared: false, indexable: false });
 
   const abortRef = useRef<AbortController | null>(null);
   const streamingRef = useRef(false);
@@ -99,7 +99,7 @@ export default function ChatPage() {
       setMessages([]);
       setActiveId(null);
       setPreview(null);
-      setShareInfo({ shared: false });
+      setShareInfo({ shared: false, indexable: false });
     }
   }, [user, refreshSessions]);
 
@@ -141,7 +141,7 @@ export default function ChatPage() {
     setMessages([]);
     setSelectedSkills([]);
     setPreview(null);
-    setShareInfo({ shared: false });
+    setShareInfo({ shared: false, indexable: false });
     setDraft('');
     setComposerKey((v) => v + 1);
     navigate('/');
@@ -152,7 +152,7 @@ export default function ChatPage() {
       cancelStream();
       setPreview(null);
       setActiveId(id);
-      setShareInfo({ shared: false });
+      setShareInfo({ shared: false, indexable: false });
       getShareStatus(id)
         .then(setShareInfo)
         .catch(() => {});
@@ -192,7 +192,7 @@ export default function ChatPage() {
         setActiveId(null);
         setMessages([]);
         setPreview(null);
-        setShareInfo({ shared: false });
+        setShareInfo({ shared: false, indexable: false });
         setComposerKey((v) => v + 1);
       }
       toast('Conversation deleted');
@@ -230,11 +230,11 @@ export default function ChatPage() {
     try {
       const info = await shareSession(activeId);
       setShareInfo(info);
-      if (info.shareToken) await copyShareLink(info.shareToken);
+      toast('Sharing enabled — anyone with the link can view this chat');
     } catch {
       toast('Failed to enable sharing');
     }
-  }, [activeId, copyShareLink]);
+  }, [activeId]);
 
   const handleCopyLink = useCallback(async () => {
     if (shareInfo.shareToken) await copyShareLink(shareInfo.shareToken);
@@ -244,12 +244,24 @@ export default function ChatPage() {
     if (!activeId) return;
     try {
       await unshareSession(activeId);
-      setShareInfo({ shared: false });
+      setShareInfo({ shared: false, indexable: false });
       toast('Sharing disabled — the old link no longer works');
     } catch {
       toast('Failed to disable sharing');
     }
   }, [activeId]);
+
+  const handleToggleIndexing = useCallback(
+    async (indexable: boolean) => {
+      if (!activeId) return;
+      try {
+        setShareInfo(await setShareIndexing(activeId, indexable));
+      } catch {
+        toast('Failed to update indexing setting');
+      }
+    },
+    [activeId],
+  );
 
   const sendMessage = useCallback(
     async (text: string, attachments: Attachment[] = [], skillIdsOverride?: string[]) => {
@@ -312,7 +324,7 @@ export default function ChatPage() {
 
         patch({ content: acc || 'The skill finished but returned no displayable content.', media, streaming: false });
         if (sessionId) {
-          if (sessionId !== activeId) setShareInfo({ shared: false });
+          if (sessionId !== activeId) setShareInfo({ shared: false, indexable: false });
           setActiveId(sessionId);
           refreshSessions();
         }
@@ -446,6 +458,7 @@ export default function ChatPage() {
             onShareClick={() => void handleShareClick()}
             onCopyLink={() => void handleCopyLink()}
             onDisableShare={() => void handleDisableShare()}
+            onToggleIndexing={(v) => void handleToggleIndexing(v)}
           />
           {preview ? <PreviewPanel asset={preview} onClose={() => setPreview(null)} /> : null}
         </>
