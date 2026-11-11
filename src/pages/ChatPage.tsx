@@ -264,8 +264,16 @@ export default function ChatPage() {
   );
 
   const sendMessage = useCallback(
-    async (text: string, attachments: Attachment[] = [], skillIdsOverride?: string[]) => {
+    async (
+      text: string,
+      attachments: Attachment[] = [],
+      skillIdsOverride?: string[],
+      sessionIdOverride?: string | null,
+      modelOverride?: string,
+    ) => {
       const skillIds = skillIdsOverride ?? selectedSkills;
+      const requestSessionId = sessionIdOverride === undefined ? activeId : sessionIdOverride;
+      const requestModel = modelOverride ?? model;
       const content = attachments.length > 0 ? buildMessageWithAttachments(text, attachments) : text.trim();
       if (!content || streamingRef.current) return;
       if (skillIds.length === 0) {
@@ -292,7 +300,7 @@ export default function ChatPage() {
 
       try {
         const sessionId = await chatStream(
-          { skillIds, message: content, sessionId: activeId, model: model || undefined },
+          { skillIds, message: content, sessionId: requestSessionId, model: requestModel || undefined },
           {
             onText: (t) => {
               acc += t;
@@ -324,7 +332,7 @@ export default function ChatPage() {
 
         patch({ content: acc || 'The skill finished but returned no displayable content.', media, streaming: false });
         if (sessionId) {
-          if (sessionId !== activeId) setShareInfo({ shared: false, indexable: false });
+          if (sessionId !== requestSessionId) setShareInfo({ shared: false, indexable: false });
           setActiveId(sessionId);
           refreshSessions();
         }
@@ -341,6 +349,27 @@ export default function ChatPage() {
     },
     [selectedSkills, model, activeId, refreshSessions],
   );
+
+  // A shared-page send forks first, then lands here with the new session and
+  // the visitor's first message. Explicit overrides avoid using stale state
+  // while the newly copied conversation is being opened.
+  useEffect(() => {
+    const intent = location.state as {
+      openSessionId?: string;
+      autoMessage?: string;
+      skillIds?: string[];
+      model?: string | null;
+    } | null;
+    if (!user || !intent?.openSessionId || !intent.autoMessage) return;
+
+    const { openSessionId, autoMessage, skillIds = [], model: forkedModel } = intent;
+    navigate('/', { replace: true, state: null });
+    setSelectedSkills(skillIds);
+    if (forkedModel) setModel(forkedModel);
+    void selectSession(openSessionId).then(() =>
+      sendMessage(autoMessage, [], skillIds, openSessionId, forkedModel ?? undefined),
+    );
+  }, [user, location.state, navigate, selectSession, sendMessage]);
 
   // Auto-run the jump-in intent once signed in.
   useEffect(() => {

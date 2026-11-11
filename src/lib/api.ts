@@ -434,6 +434,29 @@ export async function getSharedView(token: string): Promise<SharedView> {
   };
 }
 
+export interface ForkedSharedSession {
+  sessionId: string;
+  title: string;
+  skillIds: string[];
+  model: string | null;
+}
+
+/** Copy a shared conversation into the signed-in user's account. */
+export async function forkSharedSession(token: string): Promise<ForkedSharedSession> {
+  const res = (await http.post(`/agents/shared/${encodeURIComponent(token)}/fork`)) as {
+    session_id: string;
+    title?: string | null;
+    skill_ids?: string[];
+    model?: string | null;
+  };
+  return {
+    sessionId: res.session_id,
+    title: res.title || 'Shared chat',
+    skillIds: res.skill_ids ?? [],
+    model: res.model ?? null,
+  };
+}
+
 /* -------------------------------------------------------------- upload -- */
 
 export interface UploadedFile {
@@ -575,13 +598,11 @@ export async function chatStream(
     message: string;
     sessionId?: string | null;
     model?: string;
-    /** Continue chatting inside someone else's shared conversation. */
-    shareToken?: string;
   },
   handlers: ChatStreamHandlers,
   signal?: AbortSignal,
 ): Promise<string | null> {
-  const { skillIds, message, sessionId, model, shareToken } = params;
+  const { skillIds, message, sessionId, model } = params;
   const isMulti = skillIds.length > 1;
   const path = isMulti ? '/agents/chat/multi/stream' : '/agents/chat/stream';
   const body: Record<string, unknown> = isMulti
@@ -589,7 +610,6 @@ export async function chatStream(
     : { skill_id: skillIds[0], message };
   if (sessionId) body.session_id = sessionId;
   if (model) body.model_override = model;
-  if (shareToken) body.share_token = shareToken;
 
   const token = getToken();
   const res = await fetch(`${API_BASE}${path}`, {

@@ -1,13 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowDown, ArrowUp, Loader2 } from 'lucide-react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Message } from '../components/Message';
 import PreviewPanel from '../components/PreviewPanel';
 import { BrandMark } from '../components/Sidebar';
 import { useAuth } from '../auth/AuthContext';
-import { chatStream, getSharedView } from '../lib/api';
-import { uid } from '../lib/utils';
+import { forkSharedSession, getSharedView } from '../lib/api';
 import type { MediaBlock, Message as ChatMessage } from '../types';
 
 const POLL_INTERVAL_MS = 5000;
@@ -17,21 +16,20 @@ type ViewState = 'loading' | 'ready' | 'not-found' | 'error';
 export default function SharePage() {
   const { token } = useParams<{ token: string }>();
   const { user, openLogin } = useAuth();
+  const navigate = useNavigate();
   const [state, setState] = useState<ViewState>('loading');
   const [title, setTitle] = useState('Shared chat');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [indexable, setIndexable] = useState(false);
   const [skillIds, setSkillIds] = useState<string[]>([]);
-  const [model, setModel] = useState<string | null>(null);
   const [preview, setPreview] = useState<MediaBlock | null>(null);
   const [draft, setDraft] = useState('');
-  const [streaming, setStreaming] = useState(false);
+  const [forking, setForking] = useState(false);
 
   const listRef = useRef<HTMLDivElement>(null);
   const atBottomRef = useRef(true);
   const [atBottom, setAtBottom] = useState(true);
-  const streamingRef = useRef(false);
-  const abortRef = useRef<AbortController | null>(null);
+  const forkingRef = useRef(false);
   /** Message typed before the login modal opened; sent once the user signs in. */
   const pendingRef = useRef<string | null>(null);
 
@@ -46,7 +44,6 @@ export default function SharePage() {
       setMessages(view.messages);
       setIndexable(view.indexable);
       setSkillIds(view.skillIds);
-      setModel(view.model);
       setState('ready');
     } catch (e) {
       const status = (e as { response?: { status?: number } })?.response?.status;
@@ -56,12 +53,11 @@ export default function SharePage() {
   }, [token]);
 
   // Live view: poll while the tab is visible so new turns show up without a
-  // manual refresh. Paused during our own stream so polling cannot clobber the
-  // locally appended streaming message.
+  // manual refresh.
   useEffect(() => {
     void refetch();
     const timer = window.setInterval(() => {
-      if (document.visibilityState === 'visible' && !streamingRef.current) void refetch();
+      if (document.visibilityState === 'visible' && !forkingRef.current) void refetch();
     }, POLL_INTERVAL_MS);
     return () => window.clearInterval(timer);
   }, [refetch]);
@@ -91,8 +87,6 @@ export default function SharePage() {
     if (el && atBottomRef.current) el.scrollTop = el.scrollHeight;
   }, [messages]);
 
-  useEffect(() => () => abortRef.current?.abort(), []);
-
   const handleScroll = () => {
     const el = listRef.current;
     if (!el) return;
@@ -101,93 +95,59 @@ export default function SharePage() {
     setAtBottom(near);
   };
 
-  const doSend = useCallback(
+  const forkAndSend = useCallback(
     async (text: string) => {
       const content = text.trim();
-      if (!content || streamingRef.current || !token) return;
+      if (!content || forkingRef.current || !token) return;
       if (skillIds.length === 0) {
         toast('This conversation has no skill attached');
         return;
       }
 
-      const userMsg: ChatMessage = { id: uid(), role: 'user', content, createdAt: Date.now() };
-      const asstId = uid();
-      const asstMsg: ChatMessage = { id: asstId, role: 'assistant', content: '', streaming: true, createdAt: Date.now() };
-      setMessages((prev) => [...prev, userMsg, asstMsg]);
-      atBottomRef.current = true;
-      setAtBottom(true);
-      streamingRef.current = true;
-      setStreaming(true);
-
-      const controller = new AbortController();
-      abortRef.current = controller;
-
-      let acc = '';
-      const media: MediaBlock[] = [];
-      const patch = (extra: Partial<ChatMessage>) => {
-        setMessages((prev) => prev.map((m) => (m.id === asstId ? { ...m, ...extra } : m)));
-      };
-
+      forkingRef.current = true;
+      setForking(true);
+      setDraft('');
       try {
-        await chatStream(
-          { skillIds, message: content, shareToken: token, model: model ?? undefined },
-          {
-            onText: (t) => {
-              acc += t;
-              patch({ content: acc, media: [...media] });
-            },
-            onMedia: (b) => {
-              media.push(b);
-              patch({ content: acc, media: [...media] });
-            },
-            onDone: (payload) => {
-              if (payload.content && !acc && media.length === 0) acc = payload.content;
-            },
-            onError: (msg) => {
-              if (!acc) acc = `Error: ${msg}`;
-            },
+        const forked = await forkSharedSession(token);
+        navigate('/', {
+          state: {
+            openSessionId: forked.sessionId,
+            autoMessage: content,
+            skillIds: forked.skillIds,
+            model: forked.model,
           },
-          controller.signal,
-        );
-        patch({ content: acc || 'The skill finished but returned no displayable content.', media, streaming: false });
+        });
       } catch (e) {
-        if (controller.signal.aborted) return;
-        const msg = (e as Error).message || 'Request failed';
-        patch({ content: acc || `Error: ${msg}`, media, streaming: false });
-        toast(msg);
+        setDraft(content);
+        toast((e as Error).message || 'Failed to copy this conversation');
       } finally {
-        abortRef.current = null;
-        streamingRef.current = false;
-        setStreaming(false);
-        // Pull the persisted turn (plus anything others sent meanwhile).
-        void refetch();
+        forkingRef.current = false;
+        setForking(false);
       }
     },
-    [token, skillIds, model, refetch],
+    [token, skillIds, navigate],
   );
 
   const handleSend = () => {
     const text = draft.trim();
-    if (!text || streaming) return;
+    if (!text || forking) return;
     if (!user) {
       pendingRef.current = text;
       openLogin();
       return;
     }
-    setDraft('');
-    void doSend(text);
+    void forkAndSend(text);
   };
 
   // The login modal lives at the app root, so signing in never leaves this
-  // page. Once authenticated, send the message the visitor had already typed.
+  // page. Once authenticated, fork the chat and send the pending message.
   useEffect(() => {
     if (!user) return;
     const pending = pendingRef.current;
     if (!pending) return;
     pendingRef.current = null;
-    setDraft('');
-    void doSend(pending);
-  }, [user, doSend]);
+    void forkAndSend(pending);
+  }, [user, forkAndSend]);
 
   return (
     <div className="flex h-full overflow-hidden">
@@ -245,7 +205,7 @@ export default function SharePage() {
             ) : (
               <div className="mx-auto flex w-full max-w-5xl flex-col gap-5 sm:gap-6 lg:w-2/3">
                 {messages.map((m) => (
-                  <Message key={m.id} message={m} onConfirmSelect={() => {}} onPreview={setPreview} disabled={streaming} />
+                  <Message key={m.id} message={m} onConfirmSelect={() => {}} onPreview={setPreview} disabled={forking} />
                 ))}
               </div>
             )}
@@ -279,8 +239,8 @@ export default function SharePage() {
                       handleSend();
                     }
                   }}
-                  placeholder="Continue this conversation…"
-                  disabled={streaming}
+                  placeholder="Continue with your own copy…"
+                  disabled={forking}
                   rows={3}
                   className="max-h-56 min-h-20 w-full resize-none whitespace-pre-wrap break-words bg-transparent px-2 py-1.5 text-base leading-relaxed outline-none disabled:cursor-not-allowed disabled:opacity-60"
                 />
@@ -288,19 +248,19 @@ export default function SharePage() {
                   <button
                     type="button"
                     onClick={handleSend}
-                    disabled={!draft.trim() || streaming}
-                    aria-label="Send"
+                    disabled={!draft.trim() || forking}
+                    aria-label="Copy conversation and send"
                     className="flex h-10 w-10 flex-none items-center justify-center rounded-full bg-ink text-surface shadow-[0_1px_2px_rgba(10,10,10,.3),0_8px_18px_-8px_rgba(10,10,10,.5)] transition-transform duration-200 hover:scale-105 disabled:scale-100 disabled:opacity-30"
                   >
-                    {streaming ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowUp className="h-4 w-4" />}
+                    {forking ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowUp className="h-4 w-4" />}
                   </button>
                 </div>
               </div>
               <div className="mt-2 flex items-center justify-between text-xs text-muted-2">
                 <span className={user ? undefined : 'hint-blink'}>
-                  {user ? 'Enter to send · your replies join this shared conversation' : 'Sign in to continue this conversation'}
+                  {user ? 'Enter to send · a copy will be added to your chats' : 'Sign in to continue with your own copy'}
                 </span>
-                <span>{streaming ? 'Generating…' : null}</span>
+                <span>{forking ? 'Copying conversation…' : null}</span>
               </div>
             </div>
           </div>
