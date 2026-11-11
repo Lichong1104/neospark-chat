@@ -408,6 +408,7 @@ export async function setShareIndexing(sessionId: string, indexable: boolean): P
 export interface SharedView {
   title: string;
   model: string | null;
+  skillIds: string[];
   indexable: boolean;
   messages: import('../types').Message[];
   total: number;
@@ -418,6 +419,7 @@ export async function getSharedView(token: string): Promise<SharedView> {
   const res = (await http.get(`/agents/share/${encodeURIComponent(token)}`)) as unknown as {
     title?: string;
     model?: string | null;
+    skill_ids?: string[];
     indexable?: boolean;
     messages?: BackendMessage[];
     total?: number;
@@ -425,6 +427,7 @@ export async function getSharedView(token: string): Promise<SharedView> {
   return {
     title: res?.title || 'Shared chat',
     model: res?.model ?? null,
+    skillIds: res?.skill_ids ?? [],
     indexable: Boolean(res?.indexable),
     messages: (res?.messages ?? []).map(mapBackendMessage),
     total: res?.total ?? 0,
@@ -572,11 +575,13 @@ export async function chatStream(
     message: string;
     sessionId?: string | null;
     model?: string;
+    /** Continue chatting inside someone else's shared conversation. */
+    shareToken?: string;
   },
   handlers: ChatStreamHandlers,
   signal?: AbortSignal,
 ): Promise<string | null> {
-  const { skillIds, message, sessionId, model } = params;
+  const { skillIds, message, sessionId, model, shareToken } = params;
   const isMulti = skillIds.length > 1;
   const path = isMulti ? '/agents/chat/multi/stream' : '/agents/chat/stream';
   const body: Record<string, unknown> = isMulti
@@ -584,6 +589,7 @@ export async function chatStream(
     : { skill_id: skillIds[0], message };
   if (sessionId) body.session_id = sessionId;
   if (model) body.model_override = model;
+  if (shareToken) body.share_token = shareToken;
 
   const token = getToken();
   const res = await fetch(`${API_BASE}${path}`, {
