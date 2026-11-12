@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowDown, ArrowUp, Check, ChevronDown, Copy, FileText, Globe, Link2, Loader2, Menu, Paperclip, Search, Share2, Sparkles, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, Check, ChevronDown, Copy, FileText, Globe, Loader2, Menu, Paperclip, Search, Share2, Sparkles, X } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Attachment, MediaBlock, Message as ChatMessage, ModelOption, Skill } from '../types';
 import { Message } from './Message';
@@ -610,9 +610,9 @@ export default function ChatArea({
               disabled={streaming}
               aria-label="Share conversation"
               title="Share conversation"
-              className={cn('icon-btn', shareInfo.shared && 'text-orange-ink')}
+              className="icon-btn"
             >
-              {shareInfo.shared ? <Link2 className="h-4 w-4" /> : <Share2 className="h-4 w-4" />}
+              <Share2 className="h-4 w-4" />
             </button>
             {shareOpen && (
               <div className="absolute right-0 top-full z-30 mt-1 w-80 rounded-xl border border-line bg-surface p-4 shadow-panel">
