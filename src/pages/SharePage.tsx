@@ -229,32 +229,30 @@ export default function SharePage() {
         {state === 'ready' && (
           <div className="border-t border-line bg-surface/70 px-3 py-3 backdrop-blur sm:px-6 sm:py-4">
             <div className="mx-auto w-full max-w-6xl">
-              <div className="rounded-2xl border border-line bg-surface p-2 shadow-card transition-colors focus-within:border-ink">
-                <textarea
-                  value={draft}
-                  onChange={(e) => setDraft(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault();
-                      handleSend();
-                    }
-                  }}
-                  placeholder="Continue with your own copy…"
-                  disabled={forking}
-                  rows={3}
-                  className="max-h-56 min-h-20 w-full resize-none whitespace-pre-wrap break-words bg-transparent px-2 py-1.5 text-base leading-relaxed outline-none disabled:cursor-not-allowed disabled:opacity-60"
-                />
-                <div className="flex items-center justify-end">
-                  <button
-                    type="button"
-                    onClick={handleSend}
-                    disabled={!draft.trim() || forking}
-                    aria-label="Copy conversation and send"
-                    className="flex h-10 w-10 flex-none items-center justify-center rounded-full bg-ink text-surface shadow-[0_1px_2px_rgba(10,10,10,.3),0_8px_18px_-8px_rgba(10,10,10,.5)] transition-transform duration-200 hover:scale-105 disabled:scale-100 disabled:opacity-30"
-                  >
-                    {forking ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowUp className="h-4 w-4" />}
-                  </button>
-                </div>
+              <textarea
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSend();
+                  }
+                }}
+                placeholder="Continue with your own copy…"
+                disabled={forking}
+                rows={3}
+                className="max-h-56 min-h-20 w-full resize-none whitespace-pre-wrap break-words bg-transparent px-2 py-1.5 text-base leading-relaxed outline-none focus:outline-none focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+              />
+              <div className="flex items-center justify-end">
+                <button
+                  type="button"
+                  onClick={handleSend}
+                  disabled={!draft.trim() || forking}
+                  aria-label="Copy conversation and send"
+                  className="flex h-10 w-10 flex-none items-center justify-center rounded-full bg-ink text-surface shadow-[0_1px_2px_rgba(10,10,10,.3),0_8px_18px_-8px_rgba(10,10,10,.5)] transition-transform duration-200 hover:scale-105 disabled:scale-100 disabled:opacity-30"
+                >
+                  {forking ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowUp className="h-4 w-4" />}
+                </button>
               </div>
               <div className="mt-2 flex items-center justify-between text-xs text-muted-2">
                 <span className={user ? undefined : 'hint-blink'}>
