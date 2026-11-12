@@ -13,7 +13,7 @@ import UserPage from './UserPage';
 import SkillsPage from './SkillsPage';
 import ApiKeysPage from './ApiKeysPage';
 import { MODELS, SKILLS } from '../data/skills';
-import { chatStream, deleteSession, getSessionMessages, getShareStatus, listModels, listSessions, listSkills, pinSession, setShareIndexing, shareSession, unshareSession } from '../lib/api';
+import { chatStream, deleteSession, getSessionMessages, getShareStatus, listModels, listSessions, listSkills, pinSession, renameSession, setShareIndexing, shareSession, unshareSession } from '../lib/api';
 import type { ShareStatus } from '../lib/api';
 import type { Attachment, MediaBlock, Message, Session, View } from '../types';
 import { uid } from '../lib/utils';
@@ -210,6 +210,23 @@ export default function ChatPage() {
       toast('Action failed');
     }
   }, []);
+
+  const handleRenameSession = useCallback(
+    async (id: string, title: string) => {
+      const trimmed = title.trim();
+      const previousTitle = sessions.find((s) => s.id === id)?.title;
+      if (!trimmed || previousTitle === undefined || previousTitle === trimmed) return;
+
+      setSessions((prev) => prev.map((s) => (s.id === id ? { ...s, title: trimmed } : s)));
+      try {
+        await renameSession(id, trimmed);
+      } catch {
+        setSessions((prev) => prev.map((s) => (s.id === id ? { ...s, title: previousTitle } : s)));
+        toast('Action failed');
+      }
+    },
+    [sessions],
+  );
 
   const copyShareLink = useCallback(async (token: string) => {
     const url = `${window.location.origin}/share/${token}`;
@@ -462,33 +479,38 @@ export default function ChatPage() {
       />
       {view === 'chat' ? (
         <>
-          <ChatArea
-            title={activeTitle}
-            contextLabel={contextLabel}
-            messages={messages}
-            streaming={streaming}
-            loadingHistory={loadingHistory}
-            draft={draft}
-            onDraftChange={setDraft}
-            onSend={(t, a) => void sendMessage(t, a)}
-            onConfirmSelect={handleConfirmSelect}
-            onPreview={setPreview}
-            authenticated={!!user}
-            onRequestLogin={openLogin}
-            skills={selectableSkills}
-            selectedSkills={selectedSkills}
-            onToggleSkill={toggleSkill}
-            models={models}
-            model={model}
-            onModelChange={setModel}
-            composerKey={composerKey}
-            onOpenNav={() => setMobileNavOpen(true)}
-            shareInfo={shareInfo}
-            onShareClick={handleShareClick}
-            onCopyLink={handleCopyLink}
-            onDisableShare={handleDisableShare}
-            onToggleIndexing={handleToggleIndexing}
-          />
+          <div className="flex min-w-0 flex-1 items-center justify-center p-3 sm:p-5">
+            <div className="flex h-full w-full min-w-0 flex-col overflow-hidden rounded-2xl border border-line bg-surface shadow-panel lg:h-[85%] lg:w-2/3">
+              <ChatArea
+                title={activeTitle}
+                contextLabel={contextLabel}
+                messages={messages}
+                streaming={streaming}
+                loadingHistory={loadingHistory}
+                draft={draft}
+                onDraftChange={setDraft}
+                onSend={(t, a) => void sendMessage(t, a)}
+                onConfirmSelect={handleConfirmSelect}
+                onPreview={setPreview}
+                authenticated={!!user}
+                onRequestLogin={openLogin}
+                skills={selectableSkills}
+                selectedSkills={selectedSkills}
+                onToggleSkill={toggleSkill}
+                models={models}
+                model={model}
+                onModelChange={setModel}
+                composerKey={composerKey}
+                onOpenNav={() => setMobileNavOpen(true)}
+                onRenameTitle={activeId ? (nextTitle) => handleRenameSession(activeId, nextTitle) : undefined}
+                shareInfo={shareInfo}
+                onShareClick={handleShareClick}
+                onCopyLink={handleCopyLink}
+                onDisableShare={handleDisableShare}
+                onToggleIndexing={handleToggleIndexing}
+              />
+            </div>
+          </div>
           {preview ? <PreviewPanel asset={preview} onClose={() => setPreview(null)} /> : null}
         </>
       ) : view === 'pricing' ? (

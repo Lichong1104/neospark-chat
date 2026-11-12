@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowDown, ArrowUp, Check, ChevronDown, Copy, FileText, Globe, Loader2, Menu, Paperclip, Search, Share2, Sparkles, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, Check, ChevronDown, Copy, FileText, Globe, Loader2, Menu, Paperclip, Pencil, Search, Share2, Sparkles, X } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Attachment, MediaBlock, Message as ChatMessage, ModelOption, Skill } from '../types';
 import { Message } from './Message';
@@ -30,6 +30,7 @@ interface ChatAreaProps {
   /** Bumped whenever the conversation changes (new chat / switch / delete). */
   composerKey: number;
   onOpenNav: () => void;
+  onRenameTitle?: (title: string) => void | Promise<void>;
   /** Public share state of the active conversation; shared=false when nothing is shared. */
   shareInfo: ShareStatus;
   onShareClick: () => void | Promise<void>;
@@ -177,6 +178,7 @@ export default function ChatArea({
   onModelChange,
   composerKey,
   onOpenNav,
+  onRenameTitle,
   shareInfo,
   onShareClick,
   onCopyLink,
@@ -184,6 +186,7 @@ export default function ChatArea({
   onToggleIndexing,
 }: ChatAreaProps) {
   const listRef = useRef<HTMLDivElement>(null);
+  const titleInputRef = useRef<HTMLInputElement>(null);
   const editorRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const modelRef = useRef<HTMLDivElement>(null);
@@ -194,6 +197,8 @@ export default function ChatArea({
   const [uploading, setUploading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const [modelOpen, setModelOpen] = useState(false);
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [draftTitle, setDraftTitle] = useState(title);
   const [shareOpen, setShareOpen] = useState(false);
   const [shareBusy, setShareBusy] = useState(false);
   const shareRef = useRef<HTMLDivElement>(null);
@@ -213,8 +218,16 @@ export default function ChatArea({
     setAttachments([]);
     setUploading(false);
     setDragActive(false);
+    setEditingTitle(false);
+    setDraftTitle(title);
     dragDepth.current = 0;
-  }, [composerKey]);
+  }, [composerKey, title]);
+
+  useEffect(() => {
+    if (!editingTitle) return;
+    titleInputRef.current?.focus();
+    titleInputRef.current?.select();
+  }, [editingTitle]);
 
   // Follow the stream only while the reader is parked at the bottom. Scrolling
   // up to reread output should not be yanked back down by the next chunk.
@@ -530,6 +543,24 @@ export default function ChatArea({
     if (e.dataTransfer.files?.length) void handleFiles(e.dataTransfer.files);
   };
 
+  const startTitleEdit = () => {
+    if (!onRenameTitle) return;
+    setDraftTitle(title);
+    setEditingTitle(true);
+  };
+
+  const cancelTitleEdit = () => {
+    setDraftTitle(title);
+    setEditingTitle(false);
+  };
+
+  const commitTitleEdit = () => {
+    const nextTitle = draftTitle.trim();
+    setEditingTitle(false);
+    setDraftTitle(title);
+    if (onRenameTitle && nextTitle && nextTitle !== title) void onRenameTitle(nextTitle);
+  };
+
   const shareUrl = shareInfo.shareToken ? `${window.location.origin}/share/${shareInfo.shareToken}` : '';
 
   const runShareAction = async (action: () => void | Promise<void>) => {
@@ -600,7 +631,39 @@ export default function ChatArea({
             <Menu className="h-4 w-4" />
           </button>
           <div className="min-w-0 flex-1">
-            <div className="truncate text-sm font-bold tracking-tight">{title || 'New chat'}</div>
+            {editingTitle ? (
+              <input
+                ref={titleInputRef}
+                value={draftTitle}
+                onChange={(e) => setDraftTitle(e.target.value)}
+                onBlur={commitTitleEdit}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    e.currentTarget.blur();
+                  } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    cancelTitleEdit();
+                  }
+                }}
+                maxLength={120}
+                aria-label="Edit conversation title"
+                className="w-full min-w-0 rounded-md bg-line-soft/70 px-1 py-0.5 text-sm font-bold tracking-tight text-ink outline-none focus:bg-line-soft"
+              />
+            ) : (
+              <button
+                type="button"
+                onClick={startTitleEdit}
+                disabled={!onRenameTitle}
+                title={onRenameTitle ? 'Edit title' : undefined}
+                className="group flex min-w-0 max-w-full items-center gap-1.5 rounded-md px-1 py-0.5 text-left disabled:cursor-default"
+              >
+                <span className="truncate text-sm font-bold tracking-tight">{title || 'New chat'}</span>
+                {onRenameTitle && (
+                  <Pencil className="h-3 w-3 flex-none text-muted-2 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" />
+                )}
+              </button>
+            )}
             <div className="truncate text-xs text-muted-2">{contextLabel || 'Select a skill to start'}</div>
           </div>
           <div className="relative flex-none" ref={shareRef}>

@@ -1,7 +1,8 @@
 import { useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Check, FileText, Maximize2, MoveHorizontal, Play } from 'lucide-react';
+import { Check, Copy, FileText, Maximize2, MoveHorizontal, Play } from 'lucide-react';
+import { toast } from 'sonner';
 import { useAuth } from '../auth/AuthContext';
 import type { MediaBlock, Message as ChatMessage } from '../types';
 import { assetExtension, normalizeMessageContent } from '../lib/media';
@@ -114,6 +115,44 @@ function ThinkingDots() {
   );
 }
 
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      try {
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+      } catch {
+        toast.error('Copy failed — select the text and copy it manually');
+        return;
+      }
+    }
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1600);
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={() => void handleCopy()}
+      title={copied ? 'Copied' : 'Copy'}
+      aria-label={copied ? 'Copied' : 'Copy message'}
+      className="hover-reveal flex h-7 w-7 flex-none items-center justify-center rounded-lg text-muted-2 transition-colors hover:bg-line-soft hover:text-ink"
+    >
+      {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+    </button>
+  );
+}
+
 export function Message({
   message,
   onConfirmSelect,
@@ -127,13 +166,16 @@ export function Message({
 }) {
   if (message.role === 'user') {
     return (
-      <div className="animate-fade-up flex justify-end gap-2.5">
+      <div className="group animate-fade-up flex justify-end gap-2.5">
         <div className="max-w-[88%] rounded-2xl rounded-br-md bg-ink px-4 py-3 shadow-[0_1px_2px_rgba(10,10,10,.16),0_10px_22px_-10px_rgba(10,10,10,.5)] sm:max-w-[75%]">
           <p className="whitespace-pre-wrap break-words text-base leading-relaxed text-surface">
             {message.content}
           </p>
         </div>
-        <UserAvatar />
+        <div className="flex flex-none flex-col items-center gap-1.5">
+          <UserAvatar />
+          <CopyButton text={message.content} />
+        </div>
       </div>
     );
   }
@@ -142,7 +184,7 @@ export function Message({
   const showThinking = message.streaming && !displayContent && media.length === 0;
 
   return (
-    <div className="animate-fade-up flex items-start gap-3">
+    <div className="group animate-fade-up flex items-start gap-3">
       <div className="mt-1 flex h-7 w-7 flex-none items-center justify-center rounded-full border border-line bg-surface shadow-card">
         <RingMark className="h-4 w-4" />
       </div>
@@ -164,6 +206,12 @@ export function Message({
           </div>
         ) : showThinking ? (
           <ThinkingDots />
+        ) : null}
+
+        {!message.streaming && displayContent ? (
+          <div className="flex justify-start">
+            <CopyButton text={displayContent} />
+          </div>
         ) : null}
 
         {media.length > 0 ? (
