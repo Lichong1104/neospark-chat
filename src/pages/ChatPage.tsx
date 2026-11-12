@@ -484,10 +484,10 @@ export default function ChatPage() {
             composerKey={composerKey}
             onOpenNav={() => setMobileNavOpen(true)}
             shareInfo={shareInfo}
-            onShareClick={() => void handleShareClick()}
-            onCopyLink={() => void handleCopyLink()}
-            onDisableShare={() => void handleDisableShare()}
-            onToggleIndexing={(v) => void handleToggleIndexing(v)}
+            onShareClick={handleShareClick}
+            onCopyLink={handleCopyLink}
+            onDisableShare={handleDisableShare}
+            onToggleIndexing={handleToggleIndexing}
           />
           {preview ? <PreviewPanel asset={preview} onClose={() => setPreview(null)} /> : null}
         </>

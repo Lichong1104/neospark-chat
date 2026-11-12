@@ -594,7 +594,7 @@ export default function ChatArea({
         </div>
       )}
       {/* Header */}
-      <header className="border-b border-line bg-surface/70 px-3 py-2.5 backdrop-blur sm:px-6 sm:py-3">
+      <header className="relative z-40 border-b border-line bg-surface/70 px-3 py-2.5 backdrop-blur sm:px-6 sm:py-3">
         <div className="mx-auto flex w-full max-w-6xl items-center gap-1.5 sm:gap-3">
           <button type="button" onClick={onOpenNav} aria-label="Open menu" className="icon-btn lg:hidden">
             <Menu className="h-4 w-4" />
@@ -615,7 +615,7 @@ export default function ChatArea({
               <Share2 className="h-4 w-4" />
             </button>
             {shareOpen && (
-              <div className="absolute right-0 top-full z-30 mt-1 w-80 rounded-xl border border-line bg-surface p-4 shadow-panel">
+              <div className="absolute right-0 top-full z-50 mt-1 w-80 rounded-xl border border-line bg-surface p-4 shadow-panel">
                 <div className="flex items-center gap-2.5">
                   <Globe className="h-5 w-5 flex-none text-muted" />
                   <span className="flex-1 text-sm font-semibold text-ink">Share to web</span>
