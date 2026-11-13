@@ -462,37 +462,33 @@ export default function ChatPage() {
       />
       {view === 'chat' ? (
         <>
-          <div className="flex min-w-0 flex-1 items-center justify-center p-3 sm:p-5">
-            <div className="flex h-full w-full min-w-0 flex-col overflow-hidden rounded-2xl border border-line bg-surface shadow-panel lg:h-[85%] lg:w-2/3">
-              <ChatArea
-                title={activeTitle}
-                contextLabel={contextLabel}
-                messages={messages}
-                streaming={streaming}
-                loadingHistory={loadingHistory}
-                draft={draft}
-                onDraftChange={setDraft}
-                onSend={(t, a) => void sendMessage(t, a)}
-                onConfirmSelect={handleConfirmSelect}
-                onPreview={setPreview}
-                authenticated={!!user}
-                onRequestLogin={openLogin}
-                skills={selectableSkills}
-                selectedSkills={selectedSkills}
-                onToggleSkill={toggleSkill}
-                models={models}
-                model={model}
-                onModelChange={setModel}
-                composerKey={composerKey}
-                onOpenNav={() => setMobileNavOpen(true)}
-                shareInfo={shareInfo}
-                onShareClick={handleShareClick}
-                onCopyLink={handleCopyLink}
-                onDisableShare={handleDisableShare}
-                onToggleIndexing={handleToggleIndexing}
-              />
-            </div>
-          </div>
+          <ChatArea
+            title={activeTitle}
+            contextLabel={contextLabel}
+            messages={messages}
+            streaming={streaming}
+            loadingHistory={loadingHistory}
+            draft={draft}
+            onDraftChange={setDraft}
+            onSend={(t, a) => void sendMessage(t, a)}
+            onConfirmSelect={handleConfirmSelect}
+            onPreview={setPreview}
+            authenticated={!!user}
+            onRequestLogin={openLogin}
+            skills={selectableSkills}
+            selectedSkills={selectedSkills}
+            onToggleSkill={toggleSkill}
+            models={models}
+            model={model}
+            onModelChange={setModel}
+            composerKey={composerKey}
+            onOpenNav={() => setMobileNavOpen(true)}
+            shareInfo={shareInfo}
+            onShareClick={handleShareClick}
+            onCopyLink={handleCopyLink}
+            onDisableShare={handleDisableShare}
+            onToggleIndexing={handleToggleIndexing}
+          />
           {preview ? <PreviewPanel asset={preview} onClose={() => setPreview(null)} /> : null}
         </>
       ) : view === 'pricing' ? (
