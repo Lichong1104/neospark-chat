@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { BookOpen, ChevronDown, Coins, CreditCard, Loader2, MessageSquare, PanelLeftClose, PanelLeftOpen, Pin, Plus, Tag, Trash2, Wrench, X } from 'lucide-react';
 import type { Session, View } from '../types';
 import { cn } from '../lib/utils';
@@ -12,6 +12,7 @@ interface SidebarProps {
   onSelectSession: (id: string) => void;
   onDeleteSession: (id: string) => void | Promise<void>;
   onPinSession: (id: string, pinned: boolean) => void;
+  onRenameSession: (id: string, title: string) => void | Promise<void>;
   onNewChat: () => void;
   view: View;
   onNavigate: (view: View) => void;
@@ -39,6 +40,7 @@ export default function Sidebar({
   onSelectSession,
   onDeleteSession,
   onPinSession,
+  onRenameSession,
   onNewChat,
   view,
   onNavigate,
@@ -50,6 +52,10 @@ export default function Sidebar({
   const [groupCollapsed, setGroupCollapsed] = useState<Set<string>>(new Set());
   const [pendingDelete, setPendingDelete] = useState<{ id: string; title: string } | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [titleDraft, setTitleDraft] = useState('');
+  const titleInputRef = useRef<HTMLInputElement>(null);
+  const cancelEditRef = useRef(false);
   const [isDesktop, setIsDesktop] = useState(() => window.matchMedia('(min-width: 1024px)').matches);
 
   // The collapse affordance is desktop-only; the drawer always shows full rows.
@@ -99,6 +105,31 @@ export default function Sidebar({
       else next.add(key);
       return next;
     });
+  };
+
+  useEffect(() => {
+    if (!editingId) return;
+    titleInputRef.current?.focus();
+    titleInputRef.current?.select();
+  }, [editingId]);
+
+  const startTitleEdit = (session: Session) => {
+    cancelEditRef.current = false;
+    setTitleDraft(session.title || '');
+    setEditingId(session.id);
+  };
+
+  const commitTitleEdit = (session: Session) => {
+    if (cancelEditRef.current) {
+      cancelEditRef.current = false;
+      setEditingId(null);
+      setTitleDraft('');
+      return;
+    }
+    const next = titleDraft.trim();
+    setEditingId(null);
+    setTitleDraft('');
+    if (next && next !== session.title) void onRenameSession(session.id, next);
   };
 
   const confirmDelete = () => {
@@ -285,11 +316,12 @@ export default function Sidebar({
                               <li key={s.id}>
                                 <div
                                   className={cn(
-                                    'group flex w-full animate-fade-up items-center gap-0.5 rounded-xl px-1.5 py-1.5 transition-colors',
+                                    'group relative flex w-full animate-fade-up items-center gap-0.5 rounded-xl px-1.5 py-1.5 transition-colors',
                                     s.id === activeId ? 'bg-line-soft' : 'hover:bg-paper',
                                     deletingId === s.id && 'opacity-50',
                                   )}
                                 >
+                                  {/* Row-wide target; the title sits above it, so clicking the name edits. */}
                                   <button
                                     type="button"
                                     onClick={() => {
@@ -297,23 +329,55 @@ export default function Sidebar({
                                       onSelectSession(s.id);
                                       onCloseMobile();
                                     }}
-                                    className="flex min-h-10 min-w-0 flex-1 items-center gap-2.5 rounded-lg px-1 py-0.5 text-left"
-                                  >
+                                    aria-label={`Open ${s.title || 'New chat'}`}
+                                    className="absolute inset-0 rounded-xl"
+                                  />
+                                  <span className="pointer-events-none relative flex min-h-10 min-w-0 flex-1 items-center gap-2.5 px-1 py-0.5">
                                     <MessageSquare className={cn('h-3.5 w-3.5 flex-none', s.id === activeId ? 'text-ink' : 'text-muted-2')} />
                                     <span className="min-w-0 flex-1">
-                                      <span className={cn('block truncate text-sm font-medium', s.id === activeId ? 'text-ink' : 'text-ink-2')}>
-                                        {s.title || 'New chat'}
-                                      </span>
+                                      {editingId === s.id ? (
+                                        <input
+                                          ref={titleInputRef}
+                                          value={titleDraft}
+                                          onChange={(e) => setTitleDraft(e.target.value)}
+                                          onBlur={() => commitTitleEdit(s)}
+                                          onKeyDown={(e) => {
+                                            if (e.key === 'Enter') {
+                                              e.preventDefault();
+                                              e.currentTarget.blur();
+                                            } else if (e.key === 'Escape') {
+                                              e.preventDefault();
+                                              cancelEditRef.current = true;
+                                              e.currentTarget.blur();
+                                            }
+                                          }}
+                                          maxLength={120}
+                                          aria-label="Conversation title"
+                                          className="pointer-events-auto block w-full rounded-md bg-surface px-1 py-0.5 text-sm font-medium text-ink ring-1 ring-line"
+                                        />
+                                      ) : (
+                                        <button
+                                          type="button"
+                                          onClick={() => startTitleEdit(s)}
+                                          title="Rename conversation"
+                                          className={cn(
+                                            'pointer-events-auto block w-full truncate text-left text-sm font-medium',
+                                            s.id === activeId ? 'text-ink' : 'text-ink-2',
+                                          )}
+                                        >
+                                          {s.title || 'New chat'}
+                                        </button>
+                                      )}
                                       <span className="block text-xs text-muted-2">{timeAgo(s.updatedAt)}</span>
                                     </span>
-                                  </button>
+                                  </span>
                                   <button
                                     type="button"
                                     onClick={() => onPinSession(s.id, !s.pinned)}
                                     title={s.pinned ? 'Unpin' : 'Pin'}
                                     aria-label={s.pinned ? 'Unpin' : 'Pin'}
                                     className={cn(
-                                      'flex h-9 w-9 flex-none items-center justify-center rounded-lg transition-colors hover:bg-line-soft hover:text-ink',
+                                      'relative flex h-9 w-9 flex-none items-center justify-center rounded-lg transition-colors hover:bg-line-soft hover:text-ink',
                                       s.pinned ? 'text-orange-ink' : 'hover-reveal text-muted-2',
                                     )}
                                   >
@@ -326,7 +390,7 @@ export default function Sidebar({
                                     title="Delete conversation"
                                     aria-label="Delete conversation"
                                     className={cn(
-                                      'flex h-9 w-9 flex-none items-center justify-center rounded-lg text-muted-2 transition-colors hover:bg-line-soft hover:text-danger disabled:opacity-100',
+                                      'relative flex h-9 w-9 flex-none items-center justify-center rounded-lg text-muted-2 transition-colors hover:bg-line-soft hover:text-danger disabled:opacity-100',
                                       deletingId !== s.id && 'hover-reveal',
                                     )}
                                   >

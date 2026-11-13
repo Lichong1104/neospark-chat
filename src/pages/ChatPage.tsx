@@ -13,7 +13,7 @@ import UserPage from './UserPage';
 import SkillsPage from './SkillsPage';
 import ApiKeysPage from './ApiKeysPage';
 import { MODELS, SKILLS } from '../data/skills';
-import { chatStream, deleteSession, getSessionMessages, getShareStatus, listModels, listSessions, listSkills, pinSession, setShareIndexing, shareSession, unshareSession } from '../lib/api';
+import { chatStream, deleteSession, getSessionMessages, getShareStatus, listModels, listSessions, listSkills, pinSession, renameSession, setShareIndexing, shareSession, unshareSession } from '../lib/api';
 import type { ShareStatus } from '../lib/api';
 import type { Attachment, MediaBlock, Message, Session, View } from '../types';
 import { uid } from '../lib/utils';
@@ -210,6 +210,19 @@ export default function ChatPage() {
       toast('Action failed');
     }
   }, []);
+
+  const handleRenameSession = useCallback(
+    async (id: string, title: string) => {
+      setSessions((prev) => prev.map((s) => (s.id === id ? { ...s, title } : s)));
+      try {
+        await renameSession(id, title);
+      } catch {
+        toast('Failed to rename conversation');
+        refreshSessions();
+      }
+    },
+    [refreshSessions],
+  );
 
   const copyShareLink = useCallback(async (token: string) => {
     const url = `${window.location.origin}/share/${token}`;
@@ -452,6 +465,7 @@ export default function ChatPage() {
         onSelectSession={(id) => void selectSession(id)}
         onDeleteSession={(id) => handleDeleteSession(id)}
         onPinSession={(id, pinned) => void handlePinSession(id, pinned)}
+        onRenameSession={(id, title) => void handleRenameSession(id, title)}
         onNewChat={newChat}
         view={view}
         onNavigate={go}

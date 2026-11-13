@@ -591,7 +591,7 @@ export default function ChatArea({
 
   const composerDescription =
     [
-      !authenticated ? 'composer-auth-hint' : '',
+      authenticated ? 'composer-hint' : 'composer-auth-hint',
       streaming ? 'composer-busy-status' : '',
       skillHint ? 'composer-skill-hint' : '',
     ]
@@ -1058,11 +1058,15 @@ export default function ChatArea({
               </div>
             )}
           </div>
-          {skillHint && (
+          {skillHint ? (
             <p id="composer-skill-hint" role="status" className="mt-1.5 px-1 text-xs font-semibold text-ink-2">
               Select a skill to send.
             </p>
-          )}
+          ) : authenticated ? (
+            <p id="composer-hint" className="mt-1.5 hidden px-1 text-xs text-muted-2 sm:block">
+              Enter to send · @ to mention a skill or file
+            </p>
+          ) : null}
           <span id="composer-auth-hint" className="sr-only">
             {authenticated ? '' : 'Sign in to send messages.'}
           </span>

@@ -356,6 +356,10 @@ export async function pinSession(sessionId: string, pinned: boolean): Promise<vo
   await http.patch(`/agents/sessions/${encodeURIComponent(sessionId)}/pin`, { pinned });
 }
 
+export async function renameSession(sessionId: string, title: string): Promise<void> {
+  await http.patch(`/agents/sessions/${encodeURIComponent(sessionId)}/title`, { title });
+}
+
 /* --------------------------------------------------------------- share -- */
 
 export interface ShareStatus {
