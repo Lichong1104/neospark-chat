@@ -13,7 +13,7 @@ import UserPage from './UserPage';
 import SkillsPage from './SkillsPage';
 import ApiKeysPage from './ApiKeysPage';
 import { MODELS, SKILLS } from '../data/skills';
-import { chatStream, deleteSession, getSessionMessages, getShareStatus, listModels, listSessions, listSkills, pinSession, renameSession, setShareIndexing, shareSession, unshareSession } from '../lib/api';
+import { chatStream, deleteSession, getSessionMessages, getShareStatus, listModels, listSessions, listSkills, pinSession, setShareIndexing, shareSession, unshareSession } from '../lib/api';
 import type { ShareStatus } from '../lib/api';
 import type { Attachment, MediaBlock, Message, Session, View } from '../types';
 import { uid } from '../lib/utils';
@@ -210,23 +210,6 @@ export default function ChatPage() {
       toast('Action failed');
     }
   }, []);
-
-  const handleRenameSession = useCallback(
-    async (id: string, title: string) => {
-      const trimmed = title.trim();
-      const previousTitle = sessions.find((s) => s.id === id)?.title;
-      if (!trimmed || previousTitle === undefined || previousTitle === trimmed) return;
-
-      setSessions((prev) => prev.map((s) => (s.id === id ? { ...s, title: trimmed } : s)));
-      try {
-        await renameSession(id, trimmed);
-      } catch {
-        setSessions((prev) => prev.map((s) => (s.id === id ? { ...s, title: previousTitle } : s)));
-        toast('Action failed');
-      }
-    },
-    [sessions],
-  );
 
   const copyShareLink = useCallback(async (token: string) => {
     const url = `${window.location.origin}/share/${token}`;
@@ -502,7 +485,6 @@ export default function ChatPage() {
                 onModelChange={setModel}
                 composerKey={composerKey}
                 onOpenNav={() => setMobileNavOpen(true)}
-                onRenameTitle={activeId ? (nextTitle) => handleRenameSession(activeId, nextTitle) : undefined}
                 shareInfo={shareInfo}
                 onShareClick={handleShareClick}
                 onCopyLink={handleCopyLink}
