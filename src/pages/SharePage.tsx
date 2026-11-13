@@ -4,7 +4,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Message } from '../components/Message';
 import PreviewPanel from '../components/PreviewPanel';
-import { BrandMark } from '../components/Sidebar';
+import { BrandMark } from '../components/BrandMark';
 import { useAuth } from '../auth/AuthContext';
 import { forkSharedSession, getSharedView } from '../lib/api';
 import type { MediaBlock, Message as ChatMessage } from '../types';

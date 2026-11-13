@@ -233,7 +233,7 @@ export default function UserPage({ onBack, onOpenNav }: { onBack: () => void; on
             <button
               type="button"
               onClick={() => void signOut()}
-              className="mt-8 flex min-h-10 items-center gap-2 rounded-full border border-line px-4 py-2 text-sm font-semibold text-danger transition-colors hover:border-orange/50 hover:bg-orange/5"
+              className="mt-8 flex min-h-10 items-center gap-2 rounded-full border border-line px-4 py-2 text-sm font-semibold text-danger transition-colors hover:border-danger/40 hover:bg-danger/5"
             >
               <LogOut className="h-4 w-4" />
               Sign out

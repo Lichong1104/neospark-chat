@@ -183,7 +183,7 @@ export default function LoginModal() {
         )}
 
         {error ? (
-          <p className="mt-4 rounded-lg bg-orange/10 px-3 py-2 text-sm font-medium text-orange-ink">{error}</p>
+          <p className="mt-4 rounded-lg bg-danger/10 px-3 py-2 text-sm font-medium text-danger">{error}</p>
         ) : null}
       </div>
     </div>

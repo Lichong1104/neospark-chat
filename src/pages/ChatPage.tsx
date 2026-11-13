@@ -277,7 +277,7 @@ export default function ChatPage() {
       const content = attachments.length > 0 ? buildMessageWithAttachments(text, attachments) : text.trim();
       if (!content || streamingRef.current) return;
       if (skillIds.length === 0) {
-        toast('Select a skill first');
+        toast('Select a skill to send');
         return;
       }
 
@@ -348,6 +348,16 @@ export default function ChatPage() {
       }
     },
     [selectedSkills, model, activeId, refreshSessions],
+  );
+
+  // The composer clears its draft only when this returns true.
+  const sendFromComposer = useCallback(
+    (text: string, attachments: Attachment[]) => {
+      if (selectedSkills.length === 0) return false;
+      void sendMessage(text, attachments);
+      return true;
+    },
+    [selectedSkills, sendMessage],
   );
 
   // A shared-page send forks first, then lands here with the new session and
@@ -459,7 +469,7 @@ export default function ChatPage() {
             loadingHistory={loadingHistory}
             draft={draft}
             onDraftChange={setDraft}
-            onSend={(t, a) => void sendMessage(t, a)}
+            onSend={sendFromComposer}
             onConfirmSelect={handleConfirmSelect}
             onPreview={setPreview}
             authenticated={!!user}

@@ -28,7 +28,7 @@ function Badge({ children, tone = 'neutral' }: { children: ReactNode; tone?: 'ne
       className={cn(
         'flex-none rounded-full px-2 py-0.5 text-micro font-bold uppercase tracking-wide',
         tone === 'mine' && 'bg-yellow/60 text-ink',
-        tone === 'off' && 'bg-orange/15 text-orange-ink',
+        tone === 'off' && 'bg-ink/70 text-surface',
         tone === 'neutral' && 'bg-line-soft text-muted-2',
       )}
     >
@@ -277,9 +277,10 @@ export default function SkillsPage({
                     onClick={() => starSkill(skill.id)}
                     title={favorites.includes(skill.id) ? 'Remove from favorites' : 'Add to favorites'}
                     aria-label={favorites.includes(skill.id) ? 'Remove from favorites' : 'Add to favorites'}
+                    aria-pressed={favorites.includes(skill.id)}
                     className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full border border-line bg-surface/90 shadow-card backdrop-blur transition-transform hover:scale-110"
                   >
-                    <Star className={cn('h-4 w-4', favorites.includes(skill.id) ? 'fill-yellow-dark text-yellow-dark' : 'text-muted-2')} />
+                    <Star className={cn('h-4 w-4', favorites.includes(skill.id) ? 'fill-yellow text-ink-2' : 'text-muted-2')} />
                   </button>
                 </div>
                 <div className="flex flex-1 flex-col p-4">
@@ -436,13 +437,13 @@ export default function SkillsPage({
                 <button
                   type="button"
                   onClick={() => setConfirmDelete(true)}
-                  className="flex min-h-9 w-full items-center justify-center gap-1.5 rounded-full py-1.5 text-xs font-bold text-danger transition-colors hover:bg-orange/5"
+                  className="flex min-h-9 w-full items-center justify-center gap-1.5 rounded-full py-1.5 text-xs font-bold text-danger transition-colors hover:bg-danger/5"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                   Delete skill
                 </button>
               ) : (
-                <div className="rounded-xl border border-orange/40 bg-orange/5 p-3">
+                <div className="rounded-xl border border-danger/30 bg-danger/5 p-3">
                   <p className="text-xs font-semibold text-ink">
                     Delete “{editingSkill.name}”? It disappears for every user and cannot be recovered.
                   </p>

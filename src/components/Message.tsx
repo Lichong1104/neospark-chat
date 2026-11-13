@@ -7,6 +7,7 @@ import { useAuth } from '../auth/AuthContext';
 import type { MediaBlock, Message as ChatMessage } from '../types';
 import { assetExtension, normalizeMessageContent } from '../lib/media';
 import { cn } from '../lib/utils';
+import { BrandMark } from './BrandMark';
 
 const MIN_MEDIA_SIZE = 112;
 const MAX_MEDIA_SIZE = 448;
@@ -76,16 +77,6 @@ function MediaThumb({
   );
 }
 
-function RingMark({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 32 32" className={className} aria-hidden="true">
-      <circle cx="16" cy="16" r="15" fill="#0a0a0a" />
-      <circle cx="16" cy="16" r="9" fill="none" stroke="#fff" strokeWidth="1.4" opacity=".5" />
-      <circle cx="16" cy="16" r="4.5" fill="#ffd939" />
-    </svg>
-  );
-}
-
 function UserAvatar() {
   const { user } = useAuth();
   if (user?.avatar_url) {
@@ -146,7 +137,10 @@ function CopyButton({ text }: { text: string }) {
       onClick={() => void handleCopy()}
       title={copied ? 'Copied' : 'Copy'}
       aria-label={copied ? 'Copied' : 'Copy message'}
-      className="hover-reveal flex h-7 w-7 flex-none items-center justify-center rounded-lg text-muted-2 transition-colors hover:bg-line-soft hover:text-ink"
+      className={cn(
+        'hover-reveal flex h-7 w-7 flex-none items-center justify-center rounded-lg text-muted-2 transition-colors hover:bg-line-soft',
+        copied ? 'text-success hover:text-success' : 'hover:text-ink',
+      )}
     >
       {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
     </button>
@@ -186,7 +180,7 @@ export function Message({
   return (
     <div className="group animate-fade-up flex items-start gap-3">
       <div className="mt-1 flex h-7 w-7 flex-none items-center justify-center rounded-full border border-line bg-surface shadow-card">
-        <RingMark className="h-4 w-4" />
+        <BrandMark className="h-4 w-4" />
       </div>
       <div className="min-w-0 flex-1 space-y-3">
         {displayContent ? (
@@ -313,7 +307,7 @@ export function Message({
         ) : null}
 
         {message.confirm ? (
-          <div className="rounded-xl border border-orange/30 bg-orange/[0.06] p-3">
+          <div className="rounded-xl border border-orange/30 bg-orange/5 p-3">
             <p className="text-sm font-semibold text-ink">{message.confirm.question}</p>
             <div className="mt-2 flex flex-wrap gap-2">
               {message.confirm.options.map((opt) => (

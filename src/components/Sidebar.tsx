@@ -3,6 +3,7 @@ import { BookOpen, ChevronDown, Coins, CreditCard, Loader2, MessageSquare, Panel
 import type { Session, View } from '../types';
 import { cn } from '../lib/utils';
 import UserMenu from './UserMenu';
+import { BrandMark } from './BrandMark';
 
 interface SidebarProps {
   sessions: Session[];
@@ -19,16 +20,6 @@ interface SidebarProps {
   /** Below lg the sidebar is an off-canvas drawer. */
   mobileOpen: boolean;
   onCloseMobile: () => void;
-}
-
-export function BrandMark() {
-  return (
-    <svg width="30" height="30" viewBox="0 0 32 32" aria-hidden="true">
-      <circle cx="16" cy="16" r="15" fill="#0a0a0a" />
-      <circle cx="16" cy="16" r="9" fill="none" stroke="#fff" strokeWidth="1.4" opacity=".5" />
-      <circle cx="16" cy="16" r="4.5" fill="#ffd939" />
-    </svg>
-  );
 }
 
 function timeAgo(ts: number): string {

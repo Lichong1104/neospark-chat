@@ -18,7 +18,7 @@ function StatusPill({ status }: { status: ApiKeyItem['status'] }) {
     <span
       className={cn(
         'rounded-full px-2 py-0.5 text-micro font-bold uppercase tracking-wide',
-        status === 'active' && 'bg-yellow/60 text-ink',
+        status === 'active' && 'bg-success-soft text-success',
         status === 'expired' && 'bg-orange/15 text-orange-ink',
         status === 'inactive' && 'bg-line-soft text-muted-2',
       )}
@@ -291,7 +291,7 @@ export default function ApiKeysPage({ onBack, onOpenNav }: { onBack: () => void;
                         type="button"
                         onClick={() => setPendingDelete(key)}
                         title="Delete key"
-                        className="flex h-9 w-9 items-center justify-center rounded-lg text-muted-2 transition-colors hover:bg-orange/5 hover:text-danger"
+                        className="flex h-9 w-9 items-center justify-center rounded-lg text-muted-2 transition-colors hover:bg-danger/5 hover:text-danger"
                       >
                         <Trash2 className="h-4 w-4" />
                       </button>

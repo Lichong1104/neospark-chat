@@ -14,7 +14,8 @@ interface ChatAreaProps {
   loadingHistory: boolean;
   draft: string;
   onDraftChange: (text: string) => void;
-  onSend: (text: string, attachments: Attachment[]) => void;
+  /** Returns false when the send is rejected, so the composer keeps the draft. */
+  onSend: (text: string, attachments: Attachment[]) => boolean;
   onConfirmSelect: (option: string) => void;
   onPreview: (asset: MediaBlock) => void;
   authenticated: boolean;
@@ -199,6 +200,9 @@ export default function ChatArea({
   const [slashIndex, setSlashIndex] = useState(0);
   const [mentionMode, setMentionMode] = useState<'select' | 'mention'>('mention');
   const slashRef = useRef<HTMLDivElement>(null);
+  const [skillHint, setSkillHint] = useState(false);
+  const [announcement, setAnnouncement] = useState('');
+  const wasStreamingRef = useRef(streaming);
 
   // Attachments belong to the conversation they were dropped into. Switching to
   // another conversation (or starting a new one) must not carry them over, and an
@@ -250,6 +254,23 @@ export default function ChatArea({
     firstMessageIdRef.current = firstId;
     if (conversationChanged || atBottomRef.current) el.scrollTop = el.scrollHeight;
   }, [messages]);
+
+  // Announce completion once; per-token live updates would flood the region.
+  useEffect(() => {
+    if (wasStreamingRef.current === streaming) return;
+    wasStreamingRef.current = streaming;
+    if (streaming) {
+      setAnnouncement('');
+      return;
+    }
+    const last = messages[messages.length - 1];
+    if (last?.role !== 'assistant') return;
+    setAnnouncement(last.content.startsWith('Error:') ? 'Response failed.' : 'Response complete.');
+  }, [streaming, messages]);
+
+  useEffect(() => {
+    if (selectedSkills.length > 0) setSkillHint(false);
+  }, [selectedSkills]);
 
   // Keep the uncontrolled contentEditable in sync with the draft state.
   // The marketing-site jump-in and the auto-send path set `draft` from outside
@@ -464,12 +485,35 @@ export default function ChatArea({
       onRequestLogin();
       return;
     }
+    // Clear only after the parent accepts; a rejected send keeps the draft.
+    if (!onSend(text, attachments)) {
+      setSkillHint(true);
+      return;
+    }
+    setSkillHint(false);
     atBottomRef.current = true;
     setAtBottom(true);
-    onSend(text, attachments);
     setAttachments([]);
     if (editorRef.current) editorRef.current.innerText = '';
     onDraftChange('');
+  };
+
+  const openSkillPicker = () => {
+    setMentionMode('select');
+    setSlashOpen(true);
+    setSlashQuery('');
+    setSlashIndex(0);
+  };
+
+  // Prefill instead of sending: with no skill, a direct send was a dead end.
+  const useSuggestion = (text: string) => {
+    if (!authenticated) {
+      onRequestLogin();
+      return;
+    }
+    if (!draft.trim()) onDraftChange(text);
+    editorRef.current?.focus();
+    if (selectedSkills.length === 0) openSkillPicker();
   };
 
   const handleFiles = async (files: FileList | null) => {
@@ -544,6 +588,15 @@ export default function ChatArea({
       setShareBusy(false);
     }
   };
+
+  const composerDescription =
+    [
+      !authenticated ? 'composer-auth-hint' : '',
+      streaming ? 'composer-busy-status' : '',
+      skillHint ? 'composer-skill-hint' : '',
+    ]
+      .filter(Boolean)
+      .join(' ') || undefined;
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (slashOpen) {
@@ -679,6 +732,10 @@ export default function ChatArea({
         <div
           ref={listRef}
           onScroll={handleListScroll}
+          role="log"
+          aria-label="Conversation"
+          aria-live={loadingHistory ? 'off' : 'polite'}
+          aria-relevant="additions"
           aria-busy={streaming}
           className="h-full overflow-y-auto px-4 py-6 sm:px-6 sm:py-8"
         >
@@ -699,8 +756,8 @@ export default function ChatArea({
                   <button
                     key={s}
                     type="button"
-                    onClick={() => (authenticated ? onSend(s, []) : onRequestLogin())}
-                    className="min-h-10 rounded-full border border-line bg-surface px-4 py-2 text-sm font-medium text-muted shadow-card transition-colors hover:border-ink hover:text-ink"
+                    onClick={() => useSuggestion(s)}
+                    className="min-h-10 rounded-full border border-line bg-surface px-4 py-2 text-sm font-medium text-muted shadow-card transition-colors hover:border-orange-ink hover:text-ink"
                   >
                     {s}
                   </button>
@@ -731,6 +788,10 @@ export default function ChatArea({
             {streaming ? 'Jump to latest' : 'Jump to bottom'}
           </button>
         )}
+      </div>
+
+      <div className="sr-only" role="status">
+        {announcement}
       </div>
 
       {/* Composer */}
@@ -784,7 +845,7 @@ export default function ChatArea({
                     disabled={streaming}
                     title={skill.description}
                     aria-label={`Remove ${skill.name}`}
-                    className="flex min-h-8 items-center gap-1.5 rounded-full border border-ink bg-ink px-2.5 py-1 text-xs font-semibold text-surface transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="flex min-h-8 items-center gap-1.5 rounded-full border border-orange bg-orange px-2.5 py-1 text-xs font-semibold text-ink transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <span className="text-sm leading-none">{skill.emoji}</span>
                     {skill.name}
@@ -796,7 +857,7 @@ export default function ChatArea({
           )}
 
           {/* Input shell */}
-          <div className="relative flex flex-col gap-1.5 rounded-2xl border border-line bg-surface p-2 shadow-card transition-colors focus-within:border-ink">
+          <div className="relative flex flex-col gap-1.5 rounded-2xl border border-line bg-surface p-2 shadow-card transition-colors focus-within:border-orange-deep">
             <div className="relative min-w-0">
               {!draft.trim() && (
                 <div
@@ -811,6 +872,11 @@ export default function ChatArea({
                 role="textbox"
                 aria-multiline="true"
                 aria-label="Message"
+                aria-describedby={composerDescription}
+                aria-controls={slashOpen ? 'composer-skill-menu' : undefined}
+                aria-activedescendant={
+                  slashOpen && filteredItems.length > 0 ? `slash-item-${slashIndex}` : undefined
+                }
                 contentEditable={!streaming}
                 suppressContentEditableWarning
                 onInput={handleEditorInput}
@@ -834,12 +900,7 @@ export default function ChatArea({
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  setMentionMode('select');
-                  setSlashOpen(true);
-                  setSlashQuery('');
-                  setSlashIndex(0);
-                }}
+                onClick={openSkillPicker}
                 disabled={streaming}
                 title="Select a skill"
                 aria-haspopup="menu"
@@ -866,11 +927,17 @@ export default function ChatArea({
                   <ChevronDown className={cn('h-3.5 w-3.5 flex-none transition-transform', modelOpen && 'rotate-180')} />
                 </button>
                 {modelOpen && (
-                  <div className="absolute bottom-full right-0 z-30 mb-1 w-52 overflow-hidden rounded-xl border border-line bg-surface p-1 shadow-panel">
+                  <div
+                    role="menu"
+                    aria-label="Models"
+                    className="absolute bottom-full right-0 z-30 mb-1 w-52 overflow-hidden rounded-xl border border-line bg-surface p-1 shadow-panel"
+                  >
                     {models.map((m) => (
                       <button
                         key={m.id}
                         type="button"
+                        role="menuitemradio"
+                        aria-checked={model === m.id}
                         onClick={() => {
                           onModelChange(m.id);
                           setModelOpen(false);
@@ -896,8 +963,10 @@ export default function ChatArea({
                 disabled={(!draft.trim() && attachments.length === 0) || streaming}
                 aria-label={streaming ? 'Generating' : 'Send'}
                 className={cn(
-                  'flex h-10 w-10 flex-none items-center justify-center rounded-full bg-ink text-surface shadow-[0_1px_2px_rgba(10,10,10,.3),0_8px_18px_-8px_rgba(10,10,10,.5)] transition-transform duration-200',
-                  streaming ? 'cursor-wait opacity-60' : 'hover:scale-105 disabled:scale-100 disabled:opacity-30',
+                  'flex h-10 w-10 flex-none items-center justify-center rounded-full bg-orange text-ink shadow-[0_1px_2px_rgba(10,10,10,.3),0_8px_18px_-8px_rgba(10,10,10,.5)] transition-[transform,background-color] duration-200',
+                  streaming
+                    ? 'cursor-wait'
+                    : 'hover:scale-105 hover:bg-orange-deep disabled:scale-100 disabled:bg-line-soft disabled:text-muted-2 disabled:shadow-none',
                 )}
               >
                 {streaming ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowUp className="h-4 w-4" />}
@@ -918,6 +987,9 @@ export default function ChatArea({
             {slashOpen && (
               <div
                 ref={slashRef}
+                id="composer-skill-menu"
+                role="menu"
+                aria-label={mentionMode === 'select' ? 'Skills' : 'Skills and files'}
                 className="absolute bottom-full left-0 right-0 z-30 mb-1 max-h-64 overflow-y-auto rounded-xl border border-line bg-surface p-1 shadow-panel sm:right-auto sm:w-96"
               >
                 {filteredItems.length === 0 ? (
@@ -931,6 +1003,8 @@ export default function ChatArea({
                         <button
                           key={`att-${item.id}`}
                           type="button"
+                          id={`slash-item-${i}`}
+                          role="menuitem"
                           data-item-index={i}
                           onMouseDown={(event) => event.preventDefault()}
                           onClick={() => chooseItem(item)}
@@ -957,6 +1031,9 @@ export default function ChatArea({
                       <button
                         key={`skill-${item.id}`}
                         type="button"
+                        id={`slash-item-${i}`}
+                        role={mentionMode === 'select' ? 'menuitemcheckbox' : 'menuitem'}
+                        aria-checked={mentionMode === 'select' ? item.active : undefined}
                         data-item-index={i}
                         onMouseDown={(event) => event.preventDefault()}
                         onClick={() => chooseItem(item)}
@@ -981,6 +1058,17 @@ export default function ChatArea({
               </div>
             )}
           </div>
+          {skillHint && (
+            <p id="composer-skill-hint" role="status" className="mt-1.5 px-1 text-xs font-semibold text-ink-2">
+              Select a skill to send.
+            </p>
+          )}
+          <span id="composer-auth-hint" className="sr-only">
+            {authenticated ? '' : 'Sign in to send messages.'}
+          </span>
+          <span id="composer-busy-status" role="status" className="sr-only">
+            {streaming ? 'Generating a response. The message box is read-only until it finishes.' : ''}
+          </span>
         </div>
       </div>
     </main>

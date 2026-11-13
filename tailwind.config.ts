@@ -10,7 +10,7 @@ export default {
         ink: '#0a0a0a',
         'ink-2': '#171717',
         muted: '#5a5a57',
-        'muted-2': '#737373',
+        'muted-2': '#676764',
         paper: '#fafafa',
         surface: '#ffffff',
         line: '#e8e8e6',
