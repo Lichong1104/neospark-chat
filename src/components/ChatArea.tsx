@@ -745,19 +745,20 @@ export default function ChatArea({
             </div>
           ) : messages.length === 0 ? (
             <div className="mx-auto flex max-w-3xl flex-col items-center pt-8 text-center sm:pt-[10vh]">
-              <h1 className="text-balance text-2xl font-bold leading-[1.15] tracking-[-0.03em] sm:text-display">
+              <h1 className="empty-title text-balance text-2xl font-bold leading-[1.15] tracking-[-0.03em] sm:text-display">
                 One conversation, all your Skills
               </h1>
-              <p className="mt-3 max-w-lg text-base leading-relaxed text-muted">
+              <p className="empty-copy mt-3 max-w-lg text-base leading-relaxed text-muted">
                 Pick one or more skills and a model in the composer, then describe the result you want.
               </p>
               <div className="mt-8 flex flex-wrap justify-center gap-2">
-                {SUGGESTIONS.map((s) => (
+                {SUGGESTIONS.map((s, i) => (
                   <button
                     key={s}
                     type="button"
                     onClick={() => useSuggestion(s)}
-                    className="min-h-10 rounded-full border border-line bg-surface px-4 py-2 text-sm font-medium text-muted shadow-card transition-colors hover:border-orange-ink hover:text-ink"
+                    style={{ animationDelay: `${0.18 + i * 0.05}s` }}
+                    className="empty-chip min-h-10 rounded-full border border-line bg-surface px-4 py-2 text-sm font-medium text-muted shadow-card transition-colors hover:border-orange-ink hover:text-ink"
                   >
                     {s}
                   </button>

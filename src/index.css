@@ -198,6 +198,41 @@ body {
   animation: fade-up 0.32s var(--ease-arrive) backwards;
 }
 
+/* Empty-state arrival: the promise line lifts through a mask, then the copy and
+   the suggestion chips follow in a short stagger. Runs once per new chat. */
+@keyframes empty-title {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+    clip-path: inset(0 0 100% 0);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    clip-path: inset(0 0 0 0);
+  }
+}
+.empty-title {
+  animation: empty-title 0.55s var(--ease-arrive) both;
+}
+
+@keyframes empty-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.empty-copy {
+  animation: empty-rise 0.36s var(--ease-arrive) 0.14s both;
+}
+.empty-chip {
+  animation: empty-rise 0.32s var(--ease-arrive) both;
+}
+
 @keyframes cursor-blink {
   to {
     opacity: 0;
@@ -267,7 +302,10 @@ body {
   .eyebrow .pulse-ring {
     display: none;
   }
-  .animate-fade-up {
+  .animate-fade-up,
+  .empty-title,
+  .empty-copy,
+  .empty-chip {
     animation: none;
   }
   *,
