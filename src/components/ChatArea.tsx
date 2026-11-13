@@ -3,15 +3,12 @@ import { ArrowDown, ArrowUp, Check, ChevronDown, Copy, FileText, Globe, Loader2,
 import { toast } from 'sonner';
 import type { Attachment, MediaBlock, Message as ChatMessage, ModelOption, Skill } from '../types';
 import { Message } from './Message';
-import Eyebrow from './Eyebrow';
-import { BrandMark } from './Sidebar';
 import { uploadFile } from '../lib/api';
 import type { ShareStatus } from '../lib/api';
 import { cn, uid } from '../lib/utils';
 
 interface ChatAreaProps {
   title: string;
-  contextLabel: string;
   messages: ChatMessage[];
   streaming: boolean;
   loadingHistory: boolean;
@@ -159,7 +156,6 @@ function ShareSwitch({
 
 export default function ChatArea({
   title,
-  contextLabel,
   messages,
   streaming,
   loadingHistory,
@@ -602,14 +598,13 @@ export default function ChatArea({
         </div>
       )}
       {/* Header */}
-      <header className="relative z-40 border-b border-line bg-surface/70 px-3 py-2.5 backdrop-blur sm:px-6 sm:py-3">
+      <header className="relative z-40 border-b border-line bg-surface px-3 py-2.5 sm:px-6 sm:py-3">
         <div className="flex w-full items-center gap-1.5 sm:gap-3">
           <button type="button" onClick={onOpenNav} aria-label="Open menu" className="icon-btn lg:hidden">
             <Menu className="h-4 w-4" />
           </button>
           <div className="min-w-0 flex-1">
             <div className="truncate text-sm font-bold tracking-tight">{title || 'New chat'}</div>
-            <div className="truncate text-xs text-muted-2">{contextLabel || 'Select a skill to start'}</div>
           </div>
           <div className="relative flex-none" ref={shareRef}>
             <button
@@ -693,16 +688,11 @@ export default function ChatArea({
             </div>
           ) : messages.length === 0 ? (
             <div className="mx-auto flex max-w-3xl flex-col items-center pt-8 text-center sm:pt-[10vh]">
-              <Eyebrow dot={false}>
-                <BrandMark className="h-4 w-4 flex-none" />
-                NeoSpark Conversation
-              </Eyebrow>
-              <h1 className="mt-6 text-balance text-2xl font-bold leading-[1.15] tracking-[-0.03em] sm:text-display">
+              <h1 className="text-balance text-2xl font-bold leading-[1.15] tracking-[-0.03em] sm:text-display">
                 One conversation, all your Skills
               </h1>
               <p className="mt-3 max-w-lg text-base leading-relaxed text-muted">
                 Pick one or more skills and a model in the composer, then describe the result you want.
-                Once connected, the skill's real output streams back here.
               </p>
               <div className="mt-8 flex flex-wrap justify-center gap-2">
                 {SUGGESTIONS.map((s) => (
@@ -744,7 +734,7 @@ export default function ChatArea({
       </div>
 
       {/* Composer */}
-      <div className="relative z-30 border-t border-line bg-surface/70 px-3 py-3 backdrop-blur sm:px-6 sm:py-4">
+      <div className="relative z-30 border-t border-line bg-surface px-3 py-3 sm:px-6 sm:py-4">
         {(attachments.length > 0 || uploading) && (
           <div className="mx-auto mb-2 flex w-full max-w-3xl flex-wrap gap-2">
             {attachments.map((a) => (
@@ -813,7 +803,7 @@ export default function ChatArea({
                   aria-hidden="true"
                   className="pointer-events-none absolute inset-x-0 top-0 truncate px-2 py-1.5 text-base leading-relaxed text-muted-2"
                 >
-                  Describe the result you want…
+                  {authenticated ? 'Describe the result you want…' : 'Sign in to send messages'}
                 </div>
               )}
               <div
@@ -821,13 +811,12 @@ export default function ChatArea({
                 role="textbox"
                 aria-multiline="true"
                 aria-label="Message"
-                aria-describedby="composer-hint"
                 contentEditable={!streaming}
                 suppressContentEditableWarning
                 onInput={handleEditorInput}
                 onKeyDown={handleKeyDown}
                 className={cn(
-                  'max-h-56 min-h-28 overflow-y-auto whitespace-pre-wrap break-words px-2 py-1.5 text-base leading-relaxed outline-none sm:min-h-36 sm:max-h-72',
+                  'max-h-56 min-h-14 overflow-y-auto whitespace-pre-wrap break-words px-2 py-1.5 text-base leading-relaxed outline-none sm:min-h-16 sm:max-h-72',
                   streaming && 'cursor-not-allowed opacity-60',
                 )}
               />
@@ -905,10 +894,13 @@ export default function ChatArea({
                 type="button"
                 onClick={send}
                 disabled={(!draft.trim() && attachments.length === 0) || streaming}
-                aria-label="Send"
-                className="flex h-10 w-10 flex-none items-center justify-center rounded-full bg-ink text-surface shadow-[0_1px_2px_rgba(10,10,10,.3),0_8px_18px_-8px_rgba(10,10,10,.5)] transition-transform duration-200 hover:scale-105 disabled:scale-100 disabled:opacity-30"
+                aria-label={streaming ? 'Generating' : 'Send'}
+                className={cn(
+                  'flex h-10 w-10 flex-none items-center justify-center rounded-full bg-ink text-surface shadow-[0_1px_2px_rgba(10,10,10,.3),0_8px_18px_-8px_rgba(10,10,10,.5)] transition-transform duration-200',
+                  streaming ? 'cursor-wait opacity-60' : 'hover:scale-105 disabled:scale-100 disabled:opacity-30',
+                )}
               >
-                <ArrowUp className="h-4 w-4" />
+                {streaming ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowUp className="h-4 w-4" />}
               </button>
             </div>
             <input
@@ -928,10 +920,6 @@ export default function ChatArea({
                 ref={slashRef}
                 className="absolute bottom-full left-0 right-0 z-30 mb-1 max-h-64 overflow-y-auto rounded-xl border border-line bg-surface p-1 shadow-panel sm:right-auto sm:w-96"
               >
-                <div className="flex items-center gap-2 px-2.5 py-2 text-xs font-bold uppercase tracking-[0.14em] text-muted-2">
-                  <Search className="h-3.5 w-3.5" />
-                  {mentionMode === 'select' ? 'Select a skill' : 'Mention a skill or file'}
-                </div>
                 {filteredItems.length === 0 ? (
                   <p className="px-2.5 py-2 text-sm text-muted-2">Nothing matches.</p>
                 ) : (
@@ -992,16 +980,6 @@ export default function ChatArea({
                 )}
               </div>
             )}
-          </div>
-
-          <div
-            id="composer-hint"
-            className="mt-2 flex min-h-4 items-center justify-between gap-3 text-xs text-muted-2"
-          >
-            <span className={cn('min-w-0 truncate', authenticated && 'hidden sm:block')}>
-              {authenticated ? 'Enter to send · @ to mention a skill or file' : 'Not signed in — sign in to send'}
-            </span>
-            {streaming ? <span className="ml-auto flex-none">Generating…</span> : null}
           </div>
         </div>
       </div>

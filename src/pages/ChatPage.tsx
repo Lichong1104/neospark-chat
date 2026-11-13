@@ -381,18 +381,6 @@ export default function ChatPage() {
     void sendMessage(message, [], [skill]);
   }, [user, pendingAuto, sendMessage]);
 
-  const contextLabel = useMemo(() => {
-    const parts: string[] = [];
-    if (selectedSkills.length) {
-      parts.push(`${selectedSkills.length} skill${selectedSkills.length === 1 ? '' : 's'}`);
-    }
-    if (model) {
-      const m = models.find((x) => x.id === model);
-      if (m) parts.push(m.label);
-    }
-    return parts.join(' · ');
-  }, [selectedSkills, model, models]);
-
   const handleConfirmSelect = useCallback(
     (option: string) => {
       void sendMessage(option);
@@ -466,7 +454,6 @@ export default function ChatPage() {
         <>
           <ChatArea
             title={activeTitle}
-            contextLabel={contextLabel}
             messages={messages}
             streaming={streaming}
             loadingHistory={loadingHistory}

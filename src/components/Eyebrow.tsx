@@ -5,20 +5,16 @@ import { cn } from '../lib/utils';
 export default function Eyebrow({
   children,
   className,
-  dot = true,
 }: {
   children: ReactNode;
   className?: string;
-  dot?: boolean;
 }) {
   return (
     <span className={cn('eyebrow', className)}>
-      {dot && (
-        <span className="pulse" aria-hidden="true">
-          <span className="pulse-core" />
-          <span className="pulse-ring" />
-        </span>
-      )}
+      <span className="pulse" aria-hidden="true">
+        <span className="pulse-core" />
+        <span className="pulse-ring" />
+      </span>
       {children}
     </span>
   );
