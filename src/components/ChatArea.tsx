@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import type { Attachment, MediaBlock, Message as ChatMessage, ModelOption, Skill } from '../types';
 import { Message } from './Message';
 import Eyebrow from './Eyebrow';
+import { BrandMark } from './Sidebar';
 import { uploadFile } from '../lib/api';
 import type { ShareStatus } from '../lib/api';
 import { cn, uid } from '../lib/utils';
@@ -241,6 +242,13 @@ export default function ChatArea({
   useEffect(() => {
     const el = listRef.current;
     if (!el) return;
+    // The empty state is taller than the message area on short viewports;
+    // scrolling it to the bottom would open the conversation below its own
+    // heading. Park it at the top instead.
+    if (messages.length === 0) {
+      el.scrollTop = 0;
+      return;
+    }
     const firstId = messages[0]?.id ?? null;
     const conversationChanged = firstId !== firstMessageIdRef.current;
     firstMessageIdRef.current = firstId;
@@ -595,7 +603,7 @@ export default function ChatArea({
       )}
       {/* Header */}
       <header className="relative z-40 border-b border-line bg-surface/70 px-3 py-2.5 backdrop-blur sm:px-6 sm:py-3">
-        <div className="mx-auto flex w-full max-w-6xl items-center gap-1.5 sm:gap-3">
+        <div className="flex w-full items-center gap-1.5 sm:gap-3">
           <button type="button" onClick={onOpenNav} aria-label="Open menu" className="icon-btn lg:hidden">
             <Menu className="h-4 w-4" />
           </button>
@@ -609,13 +617,19 @@ export default function ChatArea({
               onClick={() => setShareOpen((v) => !v)}
               disabled={streaming}
               aria-label="Share conversation"
+              aria-haspopup="dialog"
+              aria-expanded={shareOpen}
               title="Share conversation"
               className="icon-btn"
             >
               <Share2 className="h-4 w-4" />
             </button>
             {shareOpen && (
-              <div className="absolute right-0 top-full z-50 mt-1 w-80 rounded-xl border border-line bg-surface p-4 shadow-panel">
+              <div
+                role="dialog"
+                aria-label="Share conversation"
+                className="absolute right-0 top-full z-50 mt-1 w-80 max-w-[calc(100vw-1.5rem)] rounded-xl border border-line bg-surface p-4 shadow-panel"
+              >
                 <div className="flex items-center gap-2.5">
                   <Globe className="h-5 w-5 flex-none text-muted" />
                   <span className="flex-1 text-sm font-semibold text-ink">Share to web</span>
@@ -678,13 +692,16 @@ export default function ChatArea({
               <Loader2 className="h-6 w-6 animate-spin text-muted-2" />
             </div>
           ) : messages.length === 0 ? (
-            <div className="mx-auto flex max-w-3xl flex-col items-center pt-[10vh] text-center">
-              <Eyebrow>NeoSpark Conversation</Eyebrow>
-              <h1 className="mt-6 text-2xl font-bold leading-[1.15] tracking-[-0.03em] sm:text-display">
+            <div className="mx-auto flex max-w-3xl flex-col items-center pt-8 text-center sm:pt-[10vh]">
+              <Eyebrow dot={false}>
+                <BrandMark className="h-4 w-4 flex-none" />
+                NeoSpark Conversation
+              </Eyebrow>
+              <h1 className="mt-6 text-balance text-2xl font-bold leading-[1.15] tracking-[-0.03em] sm:text-display">
                 One conversation, all your Skills
               </h1>
               <p className="mt-3 max-w-lg text-base leading-relaxed text-muted">
-                Pick one or more skills and a model below the input, then describe the result you want.
+                Pick one or more skills and a model in the composer, then describe the result you want.
                 Once connected, the skill's real output streams back here.
               </p>
               <div className="mt-8 flex flex-wrap justify-center gap-2">
@@ -701,7 +718,7 @@ export default function ChatArea({
               </div>
             </div>
           ) : (
-            <div className="mx-auto flex w-full max-w-5xl flex-col gap-5 sm:gap-6 lg:w-2/3">
+            <div className="mx-auto flex w-full max-w-3xl flex-col gap-5 sm:gap-6">
               {messages.map((m) => (
                 <Message
                   key={m.id}
@@ -727,9 +744,9 @@ export default function ChatArea({
       </div>
 
       {/* Composer */}
-      <div className="border-t border-line bg-surface/70 px-3 py-3 backdrop-blur sm:px-6 sm:py-4">
+      <div className="relative z-30 border-t border-line bg-surface/70 px-3 py-3 backdrop-blur sm:px-6 sm:py-4">
         {(attachments.length > 0 || uploading) && (
-          <div className="mx-auto mb-2 flex w-full max-w-6xl flex-wrap gap-2">
+          <div className="mx-auto mb-2 flex w-full max-w-3xl flex-wrap gap-2">
             {attachments.map((a) => (
               <div
                 key={a.id}
@@ -762,7 +779,7 @@ export default function ChatArea({
           </div>
         )}
 
-        <div className="mx-auto w-full max-w-6xl">
+        <div className="mx-auto w-full max-w-3xl">
           {/* Selected skills */}
           {selectedSkills.length > 0 && (
             <div className="mb-2 flex flex-wrap items-center gap-1.5">
@@ -776,6 +793,7 @@ export default function ChatArea({
                     onClick={() => onToggleSkill(id)}
                     disabled={streaming}
                     title={skill.description}
+                    aria-label={`Remove ${skill.name}`}
                     className="flex min-h-8 items-center gap-1.5 rounded-full border border-ink bg-ink px-2.5 py-1 text-xs font-semibold text-surface transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <span className="text-sm leading-none">{skill.emoji}</span>
@@ -790,14 +808,26 @@ export default function ChatArea({
           {/* Input shell */}
           <div className="relative flex flex-col gap-1.5 rounded-2xl border border-line bg-surface p-2 shadow-card transition-colors focus-within:border-ink">
             <div className="relative min-w-0">
+              {!draft.trim() && (
+                <div
+                  aria-hidden="true"
+                  className="pointer-events-none absolute inset-x-0 top-0 truncate px-2 py-1.5 text-base leading-relaxed text-muted-2"
+                >
+                  Describe the result you want…
+                </div>
+              )}
               <div
                 ref={editorRef}
+                role="textbox"
+                aria-multiline="true"
+                aria-label="Message"
+                aria-describedby="composer-hint"
                 contentEditable={!streaming}
                 suppressContentEditableWarning
                 onInput={handleEditorInput}
                 onKeyDown={handleKeyDown}
                 className={cn(
-                  'max-h-56 min-h-36 overflow-y-auto whitespace-pre-wrap break-words px-2 py-1.5 text-base leading-relaxed outline-none sm:max-h-72',
+                  'max-h-56 min-h-28 overflow-y-auto whitespace-pre-wrap break-words px-2 py-1.5 text-base leading-relaxed outline-none sm:min-h-36 sm:max-h-72',
                   streaming && 'cursor-not-allowed opacity-60',
                 )}
               />
@@ -823,22 +853,28 @@ export default function ChatArea({
                 }}
                 disabled={streaming}
                 title="Select a skill"
+                aria-haspopup="menu"
+                aria-expanded={slashOpen}
                 className="flex h-10 flex-none items-center gap-1 rounded-xl px-2.5 text-sm font-semibold text-muted-2 transition-colors hover:bg-line-soft hover:text-ink disabled:cursor-not-allowed disabled:opacity-40"
               >
                 <Sparkles className="h-4 w-4" />
                 Skill
               </button>
               <div className="min-w-0 flex-1" />
-              <div className="relative flex-none" ref={modelRef}>
+              <div className="relative min-w-0" ref={modelRef}>
                 <button
                   type="button"
                   onClick={() => setModelOpen((v) => !v)}
                   disabled={streaming}
-                  className="flex h-10 items-center gap-1.5 rounded-xl px-2.5 text-sm font-semibold text-muted-2 transition-colors hover:bg-line-soft hover:text-ink disabled:cursor-not-allowed disabled:opacity-40"
+                  aria-haspopup="menu"
+                  aria-expanded={modelOpen}
+                  aria-label={modelLabel}
+                  title={modelLabel}
+                  className="flex h-10 min-w-0 max-w-full items-center gap-1.5 rounded-xl px-2.5 text-sm font-semibold text-muted-2 transition-colors hover:bg-line-soft hover:text-ink disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   <ModelIcon modelId={model} className="h-4 w-4 flex-none" />
-                  {modelLabel}
-                  <ChevronDown className={cn('h-3.5 w-3.5 transition-transform', modelOpen && 'rotate-180')} />
+                  <span className="hidden truncate min-[360px]:block">{modelLabel}</span>
+                  <ChevronDown className={cn('h-3.5 w-3.5 flex-none transition-transform', modelOpen && 'rotate-180')} />
                 </button>
                 {modelOpen && (
                   <div className="absolute bottom-full right-0 z-30 mb-1 w-52 overflow-hidden rounded-xl border border-line bg-surface p-1 shadow-panel">
@@ -888,7 +924,10 @@ export default function ChatArea({
 
             {/* @ mention menu: skills (and, when typed "@", the attached files) */}
             {slashOpen && (
-              <div ref={slashRef} className="absolute bottom-full left-0 right-0 z-30 mb-1 max-h-64 overflow-y-auto rounded-xl border border-line bg-surface p-1 shadow-panel">
+              <div
+                ref={slashRef}
+                className="absolute bottom-full left-0 right-0 z-30 mb-1 max-h-64 overflow-y-auto rounded-xl border border-line bg-surface p-1 shadow-panel sm:right-auto sm:w-96"
+              >
                 <div className="flex items-center gap-2 px-2.5 py-2 text-xs font-bold uppercase tracking-[0.14em] text-muted-2">
                   <Search className="h-3.5 w-3.5" />
                   {mentionMode === 'select' ? 'Select a skill' : 'Mention a skill or file'}
@@ -955,11 +994,14 @@ export default function ChatArea({
             )}
           </div>
 
-          <div className="mt-2 flex items-center justify-between text-xs text-muted-2">
-            <span className={authenticated ? 'hint-blink' : undefined}>
+          <div
+            id="composer-hint"
+            className="mt-2 flex min-h-4 items-center justify-between gap-3 text-xs text-muted-2"
+          >
+            <span className={cn('min-w-0 truncate', authenticated && 'hidden sm:block')}>
               {authenticated ? 'Enter to send · @ to mention a skill or file' : 'Not signed in — sign in to send'}
             </span>
-            <span>{streaming ? 'Generating…' : contextLabel}</span>
+            {streaming ? <span className="ml-auto flex-none">Generating…</span> : null}
           </div>
         </div>
       </div>

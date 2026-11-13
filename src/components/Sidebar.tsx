@@ -21,9 +21,9 @@ interface SidebarProps {
   onCloseMobile: () => void;
 }
 
-export function BrandMark() {
+export function BrandMark({ className }: { className?: string }) {
   return (
-    <svg width="30" height="30" viewBox="0 0 32 32" aria-hidden="true">
+    <svg className={className} width="30" height="30" viewBox="0 0 32 32" aria-hidden="true">
       <circle cx="16" cy="16" r="15" fill="#0a0a0a" />
       <circle cx="16" cy="16" r="9" fill="none" stroke="#fff" strokeWidth="1.4" opacity=".5" />
       <circle cx="16" cy="16" r="4.5" fill="#ffd939" />

@@ -383,7 +383,9 @@ export default function ChatPage() {
 
   const contextLabel = useMemo(() => {
     const parts: string[] = [];
-    if (selectedSkills.length) parts.push(`${selectedSkills.length} skills`);
+    if (selectedSkills.length) {
+      parts.push(`${selectedSkills.length} skill${selectedSkills.length === 1 ? '' : 's'}`);
+    }
     if (model) {
       const m = models.find((x) => x.id === model);
       if (m) parts.push(m.label);

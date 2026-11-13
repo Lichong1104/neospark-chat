@@ -70,6 +70,9 @@ body {
 /* The composer's contentEditable has no native border; its shell draws the
    focus ring instead (see focus-within on the input shell). Textareas keep the
    global ring. */
+[contenteditable] {
+  caret-color: var(--ink);
+}
 [contenteditable]:focus-visible,
 [contenteditable]:focus {
   outline: none;
@@ -226,8 +229,8 @@ body {
 .thinking-dots span:nth-child(3) {
   animation-delay: 0.3s;
 }
-/* Composer hint: a soft blink so the shortcut reminder catches the eye without
-   competing with the conversation. */
+/* Shared-page hint: a soft blink so the shortcut reminder catches the eye
+   without competing with the conversation. */
 @keyframes hint-blink {
   0%,
   100% {
