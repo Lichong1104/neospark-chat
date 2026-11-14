@@ -10,6 +10,44 @@ export interface Skill {
   preview?: string | null;
   previews?: string[];
   executionMode?: string;
+  /** Real rating aggregates; null/0 when nobody has rated it yet. */
+  ratingAvg?: number | null;
+  ratingCount?: number;
+  commentCount?: number;
+  /** Distinct users who downloaded the MCP bundle. */
+  installs?: number;
+}
+
+export interface SkillReviewItem {
+  id: number;
+  user_id: number;
+  user_name: string;
+  user_avatar: string | null;
+  rating: number | null;
+  comment: string | null;
+  created_at: string | null;
+  is_mine: boolean;
+  /** Only ever true on my_review — hidden reviews stay out of the public list. */
+  is_hidden: boolean;
+  hidden_reason: string | null;
+}
+
+export type SkillReviewBlockReason = 'login_required' | 'owner' | 'not_used';
+
+export interface SkillReviewsSummary {
+  skill_id: string;
+  rating_avg: number | null;
+  rating_count: number;
+  comment_count: number;
+  total: number;
+  my_review: SkillReviewItem | null;
+  comments: SkillReviewItem[];
+  offset: number;
+  limit: number;
+  sort: 'newest' | 'rating';
+  has_used: boolean;
+  can_review: boolean;
+  block_reason: SkillReviewBlockReason | null;
 }
 
 /** Top-level screens the sidebar can switch between. */

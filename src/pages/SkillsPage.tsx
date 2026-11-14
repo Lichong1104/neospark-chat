@@ -8,6 +8,7 @@ import {
   Download,
   ExternalLink,
   ImagePlus,
+  Info,
   Loader2,
   Pencil,
   Search,
@@ -16,6 +17,7 @@ import {
   X,
 } from 'lucide-react';
 import PageShell from '../components/PageShell';
+import SkillDetailDialog from '../components/SkillDetailDialog';
 import { useAuth } from '../auth/AuthContext';
 import { deleteSkill, downloadSkillBundle, updateSkill, updateSkillImages, updateSkillStatus } from '../lib/api';
 import { getFavorites, toggleFavorite } from '../lib/favorites';
@@ -119,6 +121,20 @@ export default function SkillsPage({
     toast(next.includes(id) ? 'Added to favorites' : 'Removed from favorites');
   };
 
+  // Marketing pages deep-link here as /skills?skill={id} so a visitor lands on
+  // the detail + review dialog for the Skill they were reading about.
+  const [detailId, setDetailId] = useState<string | null>(() =>
+    typeof window === 'undefined' ? null : new URLSearchParams(window.location.search).get('skill'),
+  );
+  const detailSkill = detailId ? skills.find((s) => s.id === detailId) ?? null : null;
+  const closeDetail = () => {
+    setDetailId(null);
+    if (typeof window !== 'undefined' && window.location.search.includes('skill=')) {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('skill');
+      window.history.replaceState({}, '', url);
+    }
+  };
   const [editingId, setEditingId] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -364,9 +380,31 @@ export default function SkillsPage({
                     </Badge>
                   </div>
                   <p className="mt-1.5 line-clamp-3 flex-1 text-[12px] leading-relaxed text-muted">{skill.description || 'No description yet.'}</p>
+                  <div className="mt-2 flex items-center gap-1.5 text-[11px] font-semibold text-muted-2">
+                    <Star className={cn('h-3 w-3', (skill.ratingCount ?? 0) > 0 ? 'fill-yellow text-ink-2' : 'text-line')} />
+                    {(skill.ratingCount ?? 0) > 0 ? (
+                      <>
+                        {(skill.ratingAvg ?? 0).toFixed(1)}
+                        <span className="font-normal">({skill.ratingCount})</span>
+                      </>
+                    ) : (
+                      <span className="font-normal">No ratings yet</span>
+                    )}
+                    <span className="text-line">·</span>
+                    <span className="font-normal">{skill.installs ?? 0} installs</span>
+                  </div>
                   <div className="mt-3 flex items-center justify-between gap-2">
                     <span className="truncate font-mono text-[10px] text-muted-2">{skill.id}</span>
-                    <div className="flex flex-none items-center gap-1.5">
+                    <div className="flex flex-none flex-wrap items-center justify-end gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setDetailId(skill.id)}
+                        title="Details, reviews and sharing"
+                        className="flex items-center gap-1.5 rounded-full border border-line px-3 py-1 text-[11px] font-bold text-ink transition-colors hover:border-ink"
+                      >
+                        <Info className="h-3 w-3" />
+                        Details
+                      </button>
                       <button
                         type="button"
                         onClick={() => void downloadBundle(skill)}
@@ -381,7 +419,7 @@ export default function SkillsPage({
                         )}
                         Download
                       </button>
-                      {canManage(skill) ? (
+                      {canManage(skill) && (
                         <button
                           type="button"
                           onClick={() => openEditor(skill)}
@@ -390,8 +428,6 @@ export default function SkillsPage({
                           <Pencil className="h-3 w-3" />
                           Edit
                         </button>
-                      ) : (
-                        <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-2">Read only</span>
                       )}
                     </div>
                   </div>
@@ -401,6 +437,14 @@ export default function SkillsPage({
           </div>
         )}
       </div>
+
+      {detailSkill && (
+        <SkillDetailDialog
+          skill={detailSkill}
+          onClose={closeDetail}
+          onChanged={onSkillsChanged}
+        />
+      )}
 
       {/* Editor dialog */}
       {editingSkill && (

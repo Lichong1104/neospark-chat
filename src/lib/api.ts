@@ -1,6 +1,6 @@
 import axios, { AxiosHeaders } from 'axios';
 import type { InternalAxiosRequestConfig } from 'axios';
-import type { ApiKeyListData, BalanceInfo, BillingState, ConfirmPrompt, CreatedApiKey, MediaBlock, ModelOption, PlanStep, PointTransaction, Session, Skill, UserInfo } from '../types';
+import type { ApiKeyListData, BalanceInfo, BillingState, ConfirmPrompt, CreatedApiKey, MediaBlock, ModelOption, PlanStep, PointTransaction, Session, Skill, SkillReviewsSummary, UserInfo } from '../types';
 import { emojiFor } from '../data/skills';
 
 const API_BASE =
@@ -141,12 +141,14 @@ interface BackendSkill {
   execution_mode?: string;
   preview?: string | null;
   previews?: string[] | null;
+  rating_avg?: number | null;
+  rating_count?: number;
+  comment_count?: number;
+  installs?: number;
 }
 
-export async function listSkills(): Promise<Skill[]> {
-  const res = (await http.get('/agents/skills')) as unknown;
-  const arr = Array.isArray(res) ? (res as BackendSkill[]) : (res as { data?: BackendSkill[] })?.data;
-  return (arr ?? []).map((s) => ({
+function toSkill(s: BackendSkill): Skill {
+  return {
     id: s.id,
     name: s.name,
     description: s.description ?? '',
@@ -156,7 +158,48 @@ export async function listSkills(): Promise<Skill[]> {
     executionMode: s.execution_mode,
     preview: s.preview ?? s.previews?.[0] ?? null,
     previews: s.previews ?? (s.preview ? [s.preview] : []),
-  }));
+    ratingAvg: s.rating_avg ?? null,
+    ratingCount: s.rating_count ?? 0,
+    commentCount: s.comment_count ?? 0,
+    installs: s.installs ?? 0,
+  };
+}
+
+export async function listSkills(): Promise<Skill[]> {
+  const res = (await http.get('/agents/skills')) as unknown;
+  const arr = Array.isArray(res) ? (res as BackendSkill[]) : (res as { data?: BackendSkill[] })?.data;
+  return (arr ?? []).map(toSkill);
+}
+
+/* ------------------------------------------------------- skill reviews -- */
+
+export async function listSkillReviews(
+  skillId: string,
+  params: { sort?: 'newest' | 'rating'; offset?: number; limit?: number } = {},
+): Promise<SkillReviewsSummary> {
+  const res = (await http.get(`/agents/skills/${encodeURIComponent(skillId)}/reviews`, {
+    params: { sort: params.sort ?? 'newest', offset: params.offset ?? 0, limit: params.limit ?? 10 },
+  })) as { data?: SkillReviewsSummary };
+  if (!res?.data) throw new Error('Unexpected /skills/{id}/reviews response');
+  return res.data;
+}
+
+/** Create or update your review. Backend requires a real prior use of the Skill. */
+export async function saveSkillReview(
+  skillId: string,
+  body: { rating?: number | null; comment?: string | null },
+): Promise<void> {
+  await http.put(`/agents/skills/${encodeURIComponent(skillId)}/reviews`, body);
+}
+
+export async function deleteSkillReview(skillId: string, reviewId: number): Promise<void> {
+  await http.delete(`/agents/skills/${encodeURIComponent(skillId)}/reviews/${reviewId}`);
+}
+
+/** Human-readable code for a review-gating 403 (`usage_required` / `owner_cannot_review`). */
+export function reviewErrorCode(err: unknown): string | null {
+  const detail = (err as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail;
+  return typeof detail === 'string' ? detail : null;
 }
 
 /* ---------------------------------------------------------- skill admin -- */
