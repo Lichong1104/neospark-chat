@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import PageShell from '../components/PageShell';
 import { cn } from '../lib/utils';
 import skillSpecMd from '../docs/skill-spec.md?raw';
+import mcpClientsMd from '../docs/mcp-clients.md?raw';
 import imageApiMd from '../docs/image-api.md?raw';
 import videoApiMd from '../docs/video-api.md?raw';
 import klingApiMd from '../docs/video-api-kling.md?raw';
@@ -23,6 +24,12 @@ const DOCS: DocEntry[] = [
     title: 'Skill Specification',
     description: 'Package format, SKILL.md manifest and execution contract for NeoSpark Skills (from the homepage skill-spec).',
     body: skillSpecMd,
+  },
+  {
+    id: 'mcp-clients',
+    title: 'Skills in Claude Code / Codex',
+    description: 'Install a downloaded Skill package, verify the MCP connection and run it as /neospark-<skill>.',
+    body: mcpClientsMd,
   },
   {
     id: 'image-api',

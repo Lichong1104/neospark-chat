@@ -2,7 +2,9 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { toast } from 'sonner';
 import {
+  BookOpen,
   Check,
+  Copy,
   Download,
   ExternalLink,
   ImagePlus,
@@ -49,6 +51,48 @@ function Badge({ children, tone = 'neutral' }: { children: ReactNode; tone?: 'ne
   );
 }
 
+/** One-line command with a copy button, used by the install guide. */
+function CodeBlock({ code }: { code: string }) {
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(code);
+      toast.success('Command copied');
+    } catch {
+      toast('Copy failed — select the text and copy it manually');
+    }
+  };
+  return (
+    <div className="mt-1.5 flex items-start gap-2 rounded-lg bg-ink px-3 py-2">
+      <code className="min-w-0 flex-1 whitespace-pre-wrap break-all font-mono text-[11px] leading-relaxed text-surface">
+        {code}
+      </code>
+      <button
+        type="button"
+        onClick={() => void copy()}
+        aria-label="Copy command"
+        title="Copy"
+        className="flex h-6 w-6 flex-none items-center justify-center rounded-md text-surface/70 transition-colors hover:bg-surface/10 hover:text-surface"
+      >
+        <Copy className="h-3.5 w-3.5" />
+      </button>
+    </div>
+  );
+}
+
+function GuideStep({ index, title, children }: { index: number; title: string; children: ReactNode }) {
+  return (
+    <div className="flex gap-3">
+      <span className="mt-0.5 flex h-5 w-5 flex-none items-center justify-center rounded-full bg-ink text-[10px] font-bold text-surface">
+        {index}
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-semibold text-ink">{title}</p>
+        <div className="mt-1 text-xs leading-relaxed text-muted">{children}</div>
+      </div>
+    </div>
+  );
+}
+
 export default function SkillsPage({
   onBack,
   onOpenNav,
@@ -85,12 +129,16 @@ export default function SkillsPage({
   const [deleting, setDeleting] = useState(false);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [guideSkill, setGuideSkill] = useState<Skill | null>(null);
+  const [guideOpen, setGuideOpen] = useState(false);
   const imageInputRef = useRef<HTMLInputElement>(null);
 
   const myId = user?.id ?? null;
   const isMine = (skill: Skill) => myId != null && skill.ownerId != null && skill.ownerId === myId;
   const canManage = (skill: Skill) => !!user && (!!user.is_admin || isMine(skill));
   const editingSkill = editingId ? skills.find((s) => s.id === editingId) ?? null : null;
+  const guideSkillId = guideSkill?.id ?? '<skill-id>';
+  const guideSlash = guideSkill ? clientSkillName(guideSkill.id) : 'neospark-<skill>';
 
   // Mine first, then system skills, then everyone else's uploads.
   const ordered = useMemo(() => {
@@ -211,9 +259,11 @@ export default function SkillsPage({
       link.click();
       link.remove();
       URL.revokeObjectURL(url);
-      toast.success(
-        `Downloading ${skill.name} — unzip, run install.sh, then use /${clientSkillName(skill.id)}`,
-      );
+      setGuideSkill(skill);
+      toast.success(`Downloading ${skill.name} — unzip and run the installer`, {
+        action: { label: 'How to install', onClick: () => setGuideOpen(true) },
+        duration: 8000,
+      });
     } catch {
       toast.error('Could not download the skill');
     } finally {
@@ -258,6 +308,14 @@ export default function SkillsPage({
           <span className="text-xs font-semibold text-muted-2">
             {filtered.length} of {skills.length}
           </span>
+          <button
+            type="button"
+            onClick={() => setGuideOpen(true)}
+            className="flex min-h-9 items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1.5 text-xs font-bold text-ink transition-colors hover:border-ink"
+          >
+            <BookOpen className="h-3.5 w-3.5" />
+            How to install
+          </button>
           {!user && (
             <button type="button" onClick={openLogin} className="min-h-9 rounded-full bg-ink px-3 py-1.5 text-xs font-bold text-surface">
               Sign in to edit
@@ -482,6 +540,91 @@ export default function SkillsPage({
                   </div>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {guideOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <button
+            type="button"
+            aria-label="Close install guide"
+            onClick={() => setGuideOpen(false)}
+            className="absolute inset-0 bg-ink/40 backdrop-blur-sm"
+          />
+          <div className="relative z-10 flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-line bg-surface shadow-lift">
+            <div className="flex items-start gap-3 border-b border-line px-5 py-4">
+              <BookOpen className="mt-0.5 h-5 w-5 flex-none text-ink-2" />
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-bold tracking-tight">
+                  {guideSkill ? `Install ${guideSkill.name}` : 'Install a Skill'}
+                </div>
+                <p className="mt-0.5 text-xs text-muted">
+                  The downloaded package is a Claude Code / Codex skill. It calls this Skill's MCP tool;
+                  runs and credits stay on NeoSpark.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setGuideOpen(false)}
+                aria-label="Close"
+                className="flex h-8 w-8 flex-none items-center justify-center rounded-lg text-muted-2 transition-colors hover:bg-line-soft hover:text-ink"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-5 py-4">
+              <GuideStep index={1} title="Download and unzip the package">
+                In the Skill market, click <span className="font-semibold text-ink-2">Download</span> and
+                unzip <code className="font-mono text-[11px]">neospark-{guideSkillId}-skill.zip</code>.
+              </GuideStep>
+
+              <GuideStep index={2} title="Run the installer in the unzipped folder">
+                macOS / Linux / Git Bash:
+                <CodeBlock code="./install.sh claude" />
+                Windows PowerShell:
+                <CodeBlock code=".\\install.ps1 claude" />
+                <span className="mt-1.5 block">
+                  Drop <code className="font-mono text-[11px]">claude</code> to configure Claude Code and
+                  Codex at once. The script copies the skill to the client's skills folder, writes the MCP
+                  config and runs a self-check.
+                </span>
+              </GuideStep>
+
+              <GuideStep index={3} title="Restart Claude Code, then use the skill">
+                MCP servers and skills load on start, so open a new session first.
+                <CodeBlock code={`/${guideSlash} <your request>`} />
+              </GuideStep>
+
+              <GuideStep index={4} title="Check the connection">
+                <code className="font-mono text-[11px]">claude mcp list</code> should show{' '}
+                <code className="font-mono text-[11px]">{guideSkillId}</code> as connected; inside a
+                session, <code className="font-mono text-[11px]">/mcp</code> lists one tool.
+              </GuideStep>
+
+              <details className="rounded-xl border border-line bg-paper/60 px-4 py-3">
+                <summary className="cursor-pointer text-xs font-bold text-ink-2">
+                  Manual install (no script)
+                </summary>
+                <div className="mt-2 space-y-2 text-xs leading-relaxed text-muted">
+                  <p>
+                    Copy the package's <code className="font-mono text-[11px]">skill/</code> folder to{' '}
+                    <code className="font-mono text-[11px]">~/.claude/skills/{guideSlash}/</code>, then add
+                    the MCP server (the key is in <code className="font-mono text-[11px]">claude.mcp.json</code>):
+                  </p>
+                  <CodeBlock
+                    code={`claude mcp add --transport http ${guideSkillId} https://api.useneospark.com/mcp/${guideSkillId} --header "Authorization: Bearer <nsk_key>" --scope user`}
+                  />
+                </div>
+              </details>
+
+              <p className="rounded-xl bg-line-soft/60 px-4 py-3 text-xs leading-relaxed text-muted">
+                Each call spends the signed-in user's NeoSpark credits. Re-downloading a Skill rotates its
+                key and invalidates the old package, so reinstall if a previously working setup suddenly
+                gets 401s.
+              </p>
             </div>
           </div>
         </div>
