@@ -162,12 +162,18 @@ export async function listSkills(): Promise<Skill[]> {
 /* ---------------------------------------------------------- skill admin -- */
 
 /**
- * Download a Skill's MCP bundle: a zip with a key scoped to this one Skill and
- * the Claude Code / Codex client config. The backend rotates the key on every
- * download, so this is a live request each time — never a cached link.
+ * Download a Skill's client package: by default a native Claude Code / Codex
+ * skill (SKILL.md + installers) that calls this Skill's MCP tool, with a key
+ * scoped to this one Skill. `format: 'mcp'` returns the legacy pure-MCP config
+ * bundle. The backend rotates the key on every download, so this is a live
+ * request each time — never a cached link.
  */
-export async function downloadSkillBundle(skillId: string): Promise<Blob> {
+export async function downloadSkillBundle(
+  skillId: string,
+  format: 'skill' | 'mcp' = 'skill',
+): Promise<Blob> {
   return (await http.get(`/agents/skills/${encodeURIComponent(skillId)}/mcp-bundle`, {
+    params: { format },
     responseType: 'blob',
   })) as unknown as Blob;
 }

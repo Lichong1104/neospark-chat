@@ -22,6 +22,18 @@ import { cn } from '../lib/utils';
 
 const PLATFORM_BASE = 'https://useneospark.com';
 
+/** Mirrors the backend's client skill name so the toast and file match the zip. */
+function clientSkillName(skillId: string): string {
+  const slug =
+    skillId
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9-]+/g, '-')
+      .replace(/-{2,}/g, '-')
+      .replace(/^-|-$/g, '') || 'skill';
+  return `neospark-${slug}`;
+}
+
 function Badge({ children, tone = 'neutral' }: { children: ReactNode; tone?: 'neutral' | 'mine' | 'off' }) {
   return (
     <span
@@ -194,12 +206,14 @@ export default function SkillsPage({
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `neospark-${skill.id}-mcp.zip`;
+      link.download = `${clientSkillName(skill.id)}-skill.zip`;
       document.body.appendChild(link);
       link.click();
       link.remove();
       URL.revokeObjectURL(url);
-      toast.success(`Downloading ${skill.name} — unzip and follow the README to connect your agent`);
+      toast.success(
+        `Downloading ${skill.name} — unzip, run install.sh, then use /${clientSkillName(skill.id)}`,
+      );
     } catch {
       toast.error('Could not download the skill');
     } finally {
@@ -226,8 +240,9 @@ export default function SkillsPage({
       <div>
         <h1 className="text-2xl font-bold tracking-[-0.03em]">Skill market</h1>
         <p className="mt-1 text-sm text-muted">
-          Every Skill available in chat. Download one as an MCP bundle for Claude Code or Codex;
-          Skills you uploaded — or any skill, for admins — can also be edited here.
+          Every Skill available in chat. Download one as a Claude Code / Codex skill
+          (it calls the Skill's MCP tool); Skills you uploaded — or any skill, for admins —
+          can also be edited here.
         </p>
 
         <div className="mt-5 flex flex-wrap items-center gap-3">
@@ -298,7 +313,7 @@ export default function SkillsPage({
                         type="button"
                         onClick={() => void downloadBundle(skill)}
                         disabled={downloadingId === skill.id}
-                        title="Download a zip with a key scoped to this Skill and the Claude Code / Codex config"
+                        title="Download a Claude Code / Codex skill that calls this Skill, with a key scoped to it"
                         className="flex items-center gap-1.5 rounded-full border border-line px-3 py-1 text-[11px] font-bold text-ink transition-colors hover:border-ink disabled:opacity-60"
                       >
                         {downloadingId === skill.id ? (
