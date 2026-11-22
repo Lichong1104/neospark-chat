@@ -4,7 +4,7 @@ import remarkGfm from 'remark-gfm';
 import { Check, Copy, FileText, Maximize2, MoveHorizontal, Play } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '../auth/AuthContext';
-import type { MediaBlock, Message as ChatMessage } from '../types';
+import type { MediaBlock, Message as ChatMessage, SkillBilling } from '../types';
 import { assetExtension, normalizeMessageContent } from '../lib/media';
 import { cn } from '../lib/utils';
 import { BrandMark } from './BrandMark';
@@ -103,6 +103,93 @@ function ThinkingDots() {
       <span />
       <span />
     </span>
+  );
+}
+
+/* Three-level settlement view: the summary always shows; the per-Skill split and
+   the internal asset entries expand underneath when there is anything to show. */
+function BillingPanel({ billing }: { billing: SkillBilling }) {
+  const charged = billing.charged_credits ?? billing.total_credits;
+  const skills = billing.skills ?? [];
+  const assets = billing.assets ?? [];
+  const hasBreakdown = skills.length > 1 || assets.length > 0;
+
+  return (
+    <details className="rounded-xl border border-line bg-paper/60 px-3 py-2 text-xs">
+      <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-2 gap-y-1 text-muted-2 marker:hidden">
+        <span className="font-semibold text-ink-2">
+          {charged.toLocaleString('en-US')} credits charged
+        </span>
+        {billing.status === 'failed' ? (
+          <span className="rounded-full bg-danger/10 px-2 py-0.5 font-semibold text-danger">
+            Failed · hold released
+          </span>
+        ) : billing.status === 'reserved' ? (
+          <span className="rounded-full bg-line-soft px-2 py-0.5 font-semibold text-muted-2">
+            On hold · settles when it finishes
+          </span>
+        ) : null}
+        {billing.free_quota_applied ? (
+          <span className="rounded-full bg-orange/15 px-2 py-0.5 font-semibold text-orange-ink">
+            Free quota
+          </span>
+        ) : null}
+        {billing.partial_success ? (
+          <span className="rounded-full bg-yellow/25 px-2 py-0.5 font-semibold text-ink">
+            Partial success
+          </span>
+        ) : null}
+        {billing.refunded_credits > 0 ? (
+          <span>{billing.refunded_credits.toLocaleString('en-US')} refunded</span>
+        ) : null}
+        {typeof billing.balance_after === 'number' ? (
+          <span>· {billing.balance_after.toLocaleString('en-US')} left</span>
+        ) : null}
+      </summary>
+      {hasBreakdown ? (
+        <div className="mt-2 space-y-2">
+          <div className="flex flex-wrap gap-x-3 gap-y-1 text-muted-2">
+            <span>Skill fees {billing.skill_fee_credits.toLocaleString('en-US')}</span>
+            <span>Tokens {billing.token_credits.toLocaleString('en-US')}</span>
+            <span>
+              Assets {billing.asset_credits.toLocaleString('en-US')} ({billing.asset_item_count})
+            </span>
+          </div>
+          {skills.length > 1 ? (
+            <ul className="space-y-1 border-t border-line-soft pt-1.5">
+              {skills.map((row) => (
+                <li key={row.skill_id} className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="font-medium text-ink-2">{row.skill_id}</span>
+                  <span className="text-muted-2">
+                    {row.free_quota_applied ? 'free quota' : `${row.skill_fee_credits} credits`}
+                    {row.refunded_credits > 0
+                      ? ` · ${row.refunded_credits} refunded`
+                      : ''}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          {assets.length > 0 ? (
+            <ul className="space-y-1 border-t border-line-soft pt-1.5">
+              {assets.map((asset) => (
+                <li key={asset.id} className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-ink-2">
+                    {asset.asset_type} · {asset.model || asset.provider || 'task'}
+                    {asset.quantity > 1 ? ` ×${asset.quantity}` : ''}
+                  </span>
+                  <span className={asset.status === 'failed' ? 'text-muted-2' : ''}>
+                    {asset.status === 'failed'
+                      ? `failed${asset.error_code ? ` (${asset.error_code})` : ''}`
+                      : `${asset.credits} credits`}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+      ) : null}
+    </details>
   );
 }
 
@@ -270,6 +357,8 @@ export function Message({
             })}
           </div>
         ) : null}
+
+        {!message.streaming && message.billing ? <BillingPanel billing={message.billing} /> : null}
 
         {message.plan && message.plan.length > 0 ? (
           <div className="rounded-xl border border-line bg-paper/60 p-3">

@@ -13,9 +13,9 @@ import UserPage from './UserPage';
 import SkillsPage from './SkillsPage';
 import ApiKeysPage from './ApiKeysPage';
 import { MODELS, SKILLS } from '../data/skills';
-import { chatStream, deleteSession, getSessionMessages, getShareStatus, listModels, listSessions, listSkills, pinSession, renameSession, setShareIndexing, shareSession, unshareSession } from '../lib/api';
+import { chatStream, deleteSession, getSessionMessages, getShareStatus, listModels, listSessions, listSkills, pinSession, previewSkillPricing, renameSession, setShareIndexing, shareSession, unshareSession } from '../lib/api';
 import type { ShareStatus } from '../lib/api';
-import type { Attachment, MediaBlock, Message, Session, View } from '../types';
+import type { Attachment, MediaBlock, Message, Session, SkillPricingPreview, View } from '../types';
 import { uid } from '../lib/utils';
 
 const DEFAULT_MODEL = 'anthropic:claude-opus-5';
@@ -50,6 +50,8 @@ export default function ChatPage() {
   const [preview, setPreview] = useState<MediaBlock | null>(null);
   // Public share state of the active conversation.
   const [shareInfo, setShareInfo] = useState<ShareStatus>({ shared: false, indexable: false });
+  // Live price quote for the composer's selected Skills.
+  const [pricingPreview, setPricingPreview] = useState<SkillPricingPreview | null>(null);
 
   const abortRef = useRef<AbortController | null>(null);
   const streamingRef = useRef(false);
@@ -102,6 +104,29 @@ export default function ChatPage() {
       setShareInfo({ shared: false, indexable: false });
     }
   }, [user, refreshSessions]);
+
+  // Quote the selected Skills so the composer can show the fee and hold up front.
+  // Debounced: toggling a chip is cheap, but the quote is a DB round trip.
+  useEffect(() => {
+    if (!user || selectedSkills.length === 0) {
+      setPricingPreview(null);
+      return;
+    }
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      previewSkillPricing(selectedSkills, model || undefined)
+        .then((preview) => {
+          if (!cancelled) setPricingPreview(preview);
+        })
+        .catch(() => {
+          if (!cancelled) setPricingPreview(null);
+        });
+    }, 250);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [user, selectedSkills, model]);
 
   // Jump-in intent from the marketing site (?skill=<id>&message=<text>&auto=1).
   useEffect(() => {
@@ -326,6 +351,7 @@ export default function ChatPage() {
             onDone: (payload) => {
               // Fall back to the assembled content only when nothing else arrived.
               if (payload.content && !acc && media.length === 0) acc = payload.content;
+              if (payload.billing) patch({ billing: payload.billing });
             },
             onError: (msg) => {
               if (!acc) acc = `Error: ${msg}`;
@@ -491,6 +517,7 @@ export default function ChatPage() {
             skills={selectableSkills}
             selectedSkills={selectedSkills}
             onToggleSkill={toggleSkill}
+            pricingPreview={pricingPreview}
             models={models}
             model={model}
             onModelChange={setModel}

@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowDown, ArrowUp, Check, ChevronDown, Copy, FileText, Globe, Loader2, Menu, Paperclip, Search, Share2, Sparkles, X } from 'lucide-react';
 import { toast } from 'sonner';
-import type { Attachment, MediaBlock, Message as ChatMessage, ModelOption, Skill } from '../types';
+import type { Attachment, MediaBlock, Message as ChatMessage, ModelOption, Skill, SkillPricingItem, SkillPricingPreview } from '../types';
 import { Message } from './Message';
-import { uploadFile } from '../lib/api';
+import { previewSkillPricing, uploadFile } from '../lib/api';
 import type { ShareStatus } from '../lib/api';
 import { cn, uid } from '../lib/utils';
 
@@ -23,6 +23,8 @@ interface ChatAreaProps {
   skills: Skill[];
   selectedSkills: string[];
   onToggleSkill: (id: string) => void;
+  /** Live quote for the selected Skills; null when signed out or nothing is selected. */
+  pricingPreview: SkillPricingPreview | null;
   models: ModelOption[];
   model: string;
   onModelChange: (id: string) => void;
@@ -43,8 +45,27 @@ const SUGGESTIONS = [
   'Write a Xiaohongshu-style promo post',
 ];
 
+/** What adding this Skill costs the per-run hold: fee plus token/asset estimate. */
+const skillQuoteTotal = (quote?: SkillPricingItem): number =>
+  quote
+    ? Math.max(0, quote.skill_fee_credits) +
+      quote.estimated_token_credits +
+      quote.estimated_asset_credits
+    : 0;
+
 type SlashItem =
-  | { kind: 'skill'; id: string; name: string; description: string; emoji: string; active: boolean }
+  | {
+      kind: 'skill';
+      id: string;
+      name: string;
+      description: string;
+      emoji: string;
+      active: boolean;
+      /** Quote for this Skill in the current selection; absent until loaded. */
+      quote?: SkillPricingItem;
+      /** Adding this Skill would push the run over the per-run credit cap. */
+      disabled?: boolean;
+    }
   | { kind: 'attachment'; id: string; name: string; url: string; mediaType: 'image' | 'video' | 'file' };
 
 /* Brand marks for the model providers, keyed by the id prefix before ":". */
@@ -170,6 +191,7 @@ export default function ChatArea({
   skills,
   selectedSkills,
   onToggleSkill,
+  pricingPreview,
   models,
   model,
   onModelChange,
@@ -200,6 +222,15 @@ export default function ChatArea({
   const [slashIndex, setSlashIndex] = useState(0);
   const [mentionMode, setMentionMode] = useState<'select' | 'mention'>('mention');
   const slashRef = useRef<HTMLDivElement>(null);
+  // Per-Skill quotes for the picker, fetched once per (model, Skills) pair when
+  // the menu actually opens. Unquoted Skills simply render without a price.
+  const [skillQuotes, setSkillQuotes] = useState<Record<string, SkillPricingItem>>({});
+  const [quoteMaxPerRun, setQuoteMaxPerRun] = useState(0);
+  const quoteCacheRef = useRef<{
+    key: string;
+    quotes: Record<string, SkillPricingItem>;
+    maxPerRun: number;
+  } | null>(null);
   const [skillHint, setSkillHint] = useState(false);
   const [announcement, setAnnouncement] = useState('');
   const wasStreamingRef = useRef(streaming);
@@ -342,20 +373,81 @@ export default function ChatArea({
     el?.scrollIntoView({ block: 'nearest' });
   }, [slashIndex, slashOpen]);
 
+  // Quote every Skill so the picker can show fees, remaining free runs and
+  // which options would blow the per-run cap. Cached per model + Skill list.
+  const quoteKey = useMemo(
+    () => `${model}::${skills.map((s) => s.id).join(',')}`,
+    [model, skills],
+  );
+
+  useEffect(() => {
+    if (!slashOpen || !authenticated || skills.length === 0) return;
+    const cached = quoteCacheRef.current;
+    if (cached?.key === quoteKey) {
+      setSkillQuotes(cached.quotes);
+      setQuoteMaxPerRun(cached.maxPerRun);
+      return;
+    }
+    // Drop the previous model's quotes so the menu never prices a stale run.
+    setSkillQuotes({});
+    setQuoteMaxPerRun(0);
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      previewSkillPricing(skills.map((s) => s.id), model || undefined)
+        .then((preview) => {
+          if (cancelled || !preview) return;
+          const map: Record<string, SkillPricingItem> = {};
+          for (const item of preview.skills) map[item.skill_id] = item;
+          quoteCacheRef.current = {
+            key: quoteKey,
+            quotes: map,
+            maxPerRun: preview.max_points_per_run,
+          };
+          setSkillQuotes(map);
+          setQuoteMaxPerRun(preview.max_points_per_run);
+        })
+        .catch(() => {
+          /* Quotes are an enhancement; leave the picker unlabelled on failure. */
+        });
+    }, 120);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [slashOpen, authenticated, quoteKey, skills, model]);
+
   const modelLabel = model ? models.find((m) => m.id === model)?.label ?? model : 'Model';
+
+  // Free runs still available after this quote (sums the Skills it covers).
+  const freeRunsLeft =
+    pricingPreview?.skills.reduce(
+      (sum, s) => sum + (s.free_quota_applied ? s.free_quota_remaining : 0),
+      0,
+    ) ?? 0;
 
   const filteredItems = useMemo<SlashItem[]>(() => {
     const q = slashQuery.trim().toLowerCase();
+    const selectedTotal = selectedSkills.reduce(
+      (sum, id) => sum + skillQuoteTotal(skillQuotes[id]),
+      0,
+    );
     const skillItems: SlashItem[] = skills
       .filter((s) => !q || s.name.toLowerCase().includes(q) || s.id.toLowerCase().includes(q))
-      .map((s) => ({
-        kind: 'skill' as const,
-        id: s.id,
-        name: s.name,
-        description: s.description,
-        emoji: s.emoji ?? '⚙️',
-        active: selectedSkills.includes(s.id),
-      }));
+      .map((s) => {
+        const active = selectedSkills.includes(s.id);
+        const quote = skillQuotes[s.id];
+        const projected = Math.max(1, selectedTotal + skillQuoteTotal(quote));
+        return {
+          kind: 'skill' as const,
+          id: s.id,
+          name: s.name,
+          description: s.description,
+          emoji: s.emoji ?? '⚙️',
+          active,
+          quote,
+          disabled: !active && quote !== undefined && quoteMaxPerRun > 0 && projected > quoteMaxPerRun,
+        };
+      });
     // The "+ Skill" picker only lists skills; typing "@" also lists the files
     // the reader has attached, so a sentence can point at a specific one.
     if (mentionMode === 'select') return skillItems;
@@ -363,7 +455,7 @@ export default function ChatArea({
       .filter((a) => !q || a.name.toLowerCase().includes(q))
       .map((a) => ({ kind: 'attachment' as const, id: a.id, name: a.name, url: a.url, mediaType: a.type }));
     return [...attachmentItems, ...skillItems];
-  }, [skills, selectedSkills, attachments, slashQuery, mentionMode]);
+  }, [skills, selectedSkills, attachments, slashQuery, mentionMode, skillQuotes, quoteMaxPerRun]);
 
   // Insert an inline @chip for a skill or an attachment at the caret, replacing
   // the "@query" the reader typed. The chip's text is what `el.innerText`
@@ -438,6 +530,12 @@ export default function ChatArea({
   const chooseItem = (item?: SlashItem) => {
     if (item) {
       if (item.kind === 'skill') {
+        if (item.disabled) {
+          toast.error(
+            `Adding this Skill would exceed the ${quoteMaxPerRun.toLocaleString('en-US')} credits per-run limit. Remove another Skill first.`,
+          );
+          return;
+        }
         if (mentionMode === 'mention') {
           // Mentioning a skill inserts it inline and also selects it so it joins the run.
           insertChip(item.name);
@@ -857,6 +955,37 @@ export default function ChatArea({
             </div>
           )}
 
+          {pricingPreview && (
+            <p
+              className="mb-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-2"
+              title={pricingPreview.skills
+                .map((s) => {
+                  const price =
+                    s.pricing_mode === 'free'
+                      ? 'free'
+                      : s.free_quota_applied
+                        ? `free quota (${s.free_quota_remaining} left${s.free_quota_period ? `, ${s.free_quota_period}` : ''})`
+                        : `${s.skill_fee_credits} credits`;
+                  return `${s.skill_id}: ${price}`;
+                })
+                .join('\n')}
+            >
+              <Sparkles className="h-3.5 w-3.5 flex-none text-orange-ink" />
+              <span className="font-semibold text-ink-2">
+                {pricingPreview.free_quota_applied || pricingPreview.skill_fee_credits === 0
+                  ? 'Skill fee covered by your free quota'
+                  : `Estimated ${pricingPreview.skill_fee_credits.toLocaleString('en-US')} credits in Skill fees`}
+              </span>
+              <span>· holds up to {pricingPreview.hold_credits.toLocaleString('en-US')} until it finishes</span>
+              <span>· {pricingPreview.budget_remaining.toLocaleString('en-US')} credit budget left</span>
+              {freeRunsLeft > 0 && (
+                <span>
+                  · {freeRunsLeft.toLocaleString('en-US')} free {freeRunsLeft === 1 ? 'run' : 'runs'} left
+                </span>
+              )}
+            </p>
+          )}
+
           {/* Input shell */}
           <div className="relative flex flex-col gap-1.5 rounded-2xl border border-line bg-surface p-2 shadow-card transition-colors focus-within:border-orange-deep">
             <div className="relative min-w-0">
@@ -1035,6 +1164,8 @@ export default function ChatArea({
                         id={`slash-item-${i}`}
                         role={mentionMode === 'select' ? 'menuitemcheckbox' : 'menuitem'}
                         aria-checked={mentionMode === 'select' ? item.active : undefined}
+                        aria-disabled={item.disabled || undefined}
+                        disabled={item.disabled}
                         data-item-index={i}
                         onMouseDown={(event) => event.preventDefault()}
                         onClick={() => chooseItem(item)}
@@ -1042,6 +1173,7 @@ export default function ChatArea({
                         className={cn(
                           'flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors',
                           highlighted ? 'bg-line-soft' : item.active ? 'bg-paper' : 'hover:bg-paper',
+                          item.disabled && 'cursor-not-allowed opacity-60',
                         )}
                       >
                         <span className="text-base leading-none">{item.emoji}</span>
@@ -1051,6 +1183,38 @@ export default function ChatArea({
                           </span>
                           <span className="block truncate text-xs text-muted-2">{item.description}</span>
                         </span>
+                        {item.disabled ? (
+                          <span className="flex-none text-micro font-bold uppercase tracking-[0.08em] text-danger">
+                            Over {quoteMaxPerRun.toLocaleString('en-US')}/run
+                          </span>
+                        ) : item.quote ? (
+                          <span className="flex-none text-right text-micro leading-tight text-muted-2">
+                            {item.quote.pricing_mode === 'free' ? (
+                              <span className="font-semibold text-success">Free</span>
+                            ) : item.quote.free_quota_applied ? (
+                              <span className="font-semibold text-success">
+                                Free
+                                {item.quote.free_quota_remaining > 0
+                                  ? ` · ${item.quote.free_quota_remaining} left`
+                                  : ''}
+                              </span>
+                            ) : (
+                              <span className="font-semibold text-ink-2">
+                                {item.quote.skill_fee_credits.toLocaleString('en-US')} cr
+                              </span>
+                            )}
+                            {item.quote.estimated_token_credits + item.quote.estimated_asset_credits > 0 && (
+                              <span className="block">
+                                +~
+                                {(
+                                  item.quote.estimated_token_credits +
+                                  item.quote.estimated_asset_credits
+                                ).toLocaleString('en-US')}{' '}
+                                run
+                              </span>
+                            )}
+                          </span>
+                        ) : null}
                         {item.active && <Check className="h-3.5 w-3.5 flex-none text-orange-ink" />}
                       </button>
                     );

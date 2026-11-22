@@ -1,6 +1,6 @@
 import axios, { AxiosHeaders } from 'axios';
 import type { InternalAxiosRequestConfig } from 'axios';
-import type { ApiKeyListData, BalanceInfo, BillingState, ConfirmPrompt, CreatedApiKey, MediaBlock, ModelOption, PlanStep, PointTransaction, Session, Skill, SkillReviewsSummary, UserInfo } from '../types';
+import type { ApiKeyListData, BalanceInfo, BillingState, ConfirmPrompt, CreatedApiKey, MediaBlock, ModelOption, PlanStep, PointTransaction, Session, Skill, SkillBilling, SkillInvocationDetail, SkillPricingPreview, SkillReviewsSummary, UserInfo } from '../types';
 import { emojiFor } from '../data/skills';
 
 const API_BASE =
@@ -169,6 +169,42 @@ export async function listSkills(): Promise<Skill[]> {
   const res = (await http.get('/agents/skills')) as unknown;
   const arr = Array.isArray(res) ? (res as BackendSkill[]) : (res as { data?: BackendSkill[] })?.data;
   return (arr ?? []).map(toSkill);
+}
+
+/* ------------------------------------------------------- skill pricing -- */
+
+/** Quote the selected Skills: fee, free quota and the hold a run would place. */
+export async function previewSkillPricing(
+  skillIds: string[],
+  model?: string,
+): Promise<SkillPricingPreview | null> {
+  if (skillIds.length === 0) return null;
+  const res = (await http.post('/agents/skills/pricing/batch', {
+    skill_ids: skillIds,
+    model: model || null,
+  })) as unknown as SkillPricingPreview;
+  return res ?? null;
+}
+
+/** My settled invocations, newest first. */
+export async function listSkillInvocations(
+  limit = 20,
+  offset = 0,
+): Promise<{ invocations: SkillBilling[]; total: number }> {
+  const res = (await http.get('/agents/skills/invocations', {
+    params: { limit, offset },
+  })) as unknown as { invocations?: SkillBilling[]; total?: number };
+  return { invocations: res?.invocations ?? [], total: res?.total ?? 0 };
+}
+
+/** One run's full split: per-Skill fees and internal image/video asset entries. */
+export async function getSkillInvocation(
+  invocationId: number,
+): Promise<SkillInvocationDetail> {
+  const res = (await http.get(
+    `/agents/skills/invocations/${invocationId}`,
+  )) as unknown as SkillInvocationDetail;
+  return res;
 }
 
 /* ------------------------------------------------------- skill reviews -- */
@@ -353,7 +389,7 @@ interface BackendMessage {
   role: string;
   content: string;
   created_at?: string;
-  metadata?: { blocks?: BackendBlock[] } | null;
+  metadata?: { blocks?: BackendBlock[]; billing?: SkillBilling | null } | null;
 }
 
 export async function listSessions(): Promise<Session[]> {
@@ -386,6 +422,7 @@ function mapBackendMessage(m: BackendMessage): import('../types').Message {
     role: m.role === 'user' ? ('user' as const) : ('assistant' as const),
     content: absolutizeMarkdownLinks(m.content || ''),
     ...(media.length > 0 ? { media } : {}),
+    ...(m.metadata?.billing ? { billing: m.metadata.billing } : {}),
     createdAt: m.created_at ? new Date(m.created_at).getTime() : Date.now(),
   };
 }
@@ -565,7 +602,7 @@ export interface ChatStreamHandlers {
   onConfirm?: (prompt: ConfirmPrompt) => void;
   onPlan?: (steps: PlanStep[]) => void;
   onStepDone?: (info: { completed: number; total: number }) => void;
-  onDone: (payload: { content?: string; session_id?: string }) => void;
+  onDone: (payload: { content?: string; session_id?: string; billing?: SkillBilling }) => void;
   onError: (message: string) => void;
 }
 
@@ -632,11 +669,13 @@ function parseSseEvent(
     });
     return;
   }
-  // Final payload: { content, done, session_id, blocks, files, usage }.
+  // Final payload: { content, done, session_id, blocks, files, usage, billing }.
   if (obj.session_id) onSession(String(obj.session_id));
   handlers.onDone({
     content: obj.content ? String(obj.content) : undefined,
     session_id: obj.session_id ? String(obj.session_id) : undefined,
+    billing:
+      obj.billing && typeof obj.billing === 'object' ? (obj.billing as SkillBilling) : undefined,
   });
 }
 

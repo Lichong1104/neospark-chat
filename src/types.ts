@@ -107,10 +107,107 @@ export interface Attachment {
   type: 'image' | 'video' | 'file';
 }
 
+/** One Skill's line in a price preview (`POST /agents/skills/pricing/batch`). */
+export interface SkillPricingItem {
+  skill_id: string;
+  pricing_mode: string;
+  skill_fee_credits: number;
+  creator_share_rate: number;
+  free_quota_applied: boolean;
+  free_quota_remaining: number;
+  free_quota_period: string | null;
+  estimated_token_credits: number;
+  estimated_asset_credits: number;
+  pricing_version: string | number | null;
+}
+
+/** Pre-run quote for the selected Skills: fee, free quota and hold estimate. */
+export interface SkillPricingPreview {
+  skill_fee_credits: number;
+  estimated_token_credits: number;
+  estimated_asset_credits: number;
+  hold_credits: number;
+  max_points_per_run: number;
+  hold_expires_hours: number;
+  budget_remaining: number;
+  free_quota_applied: boolean;
+  skills: SkillPricingItem[];
+  resolved_skill_ids?: string[];
+}
+
+/** Per-Skill split of a settled invocation. */
+export interface BillingSkillLine {
+  skill_id: string;
+  owner_id: number | null;
+  skill_fee_credits: number;
+  creator_credits: number;
+  platform_credits: number;
+  refunded_credits: number;
+  free_quota_applied: boolean;
+}
+
+/** One internal asset task (image/video/…) charged inside an invocation. */
+export interface BillingAssetLine {
+  id: number;
+  skill_id: string | null;
+  asset_type: string;
+  task_table: string | null;
+  task_id: string | null;
+  provider: string | null;
+  model: string | null;
+  quantity: number;
+  unit_credits: number;
+  credits: number;
+  upstream_cost_fen: number;
+  status: string;
+  error_code: string | null;
+  created_at: string | null;
+  completed_at: string | null;
+}
+
+/** Settled billing payload attached to an assistant turn (`billing` in SSE). */
+export interface SkillBilling {
+  invocation_id: number;
+  user_id: number;
+  skill_id: string | null;
+  channel: string;
+  status: string;
+  skill_count: number;
+  skill_fee_credits: number;
+  token_credits: number;
+  asset_credits: number;
+  asset_item_count: number;
+  total_credits: number;
+  refunded_credits: number;
+  creator_credits: number;
+  platform_credits: number;
+  charged_credits: number | null;
+  free_quota_applied: boolean;
+  partial_success: boolean;
+  balance_after?: number | null;
+  skills?: BillingSkillLine[];
+  assets?: BillingAssetLine[];
+}
+
+/** One run in full, from `GET /agents/skills/invocations/{id}`. */
+export interface SkillInvocationDetail extends SkillBilling {
+  model: string | null;
+  input_tokens: number;
+  output_tokens: number;
+  error_code: string | null;
+  created_at: string | null;
+  settled_at: string | null;
+  pricing_snapshot?: Record<string, unknown>;
+  skills: BillingSkillLine[];
+  assets: BillingAssetLine[];
+}
+
 export interface Message {
   id: string;
   role: 'user' | 'assistant';
   content: string;
+  /** Settlement for this turn: summary, per-Skill split and asset entries. */
+  billing?: SkillBilling;
   /** Media produced by the Skill (streamed live), rendered under the text. */
   media?: MediaBlock[];
   /** A confirmation the Skill is waiting on, rendered as tappable option cards. */
