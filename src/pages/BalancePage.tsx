@@ -28,6 +28,13 @@ interface SpendRow {
   failed: number;
 }
 
+interface CategoryRow {
+  key: string;
+  label: string;
+  credits: number;
+  count: number;
+}
+
 const emptySpendRow = (key: string): SpendRow => ({
   key,
   runs: 0,
@@ -132,7 +139,16 @@ export default function BalancePage({ onBack, onOpenNav }: { onBack: () => void;
     const skills = new Map<string, SpendRow>();
     const assets = new Map<string, SpendRow>();
     const models = new Map<string, SpendRow>();
+    const categories = new Map<string, CategoryRow>();
     const seen = new Set<string>();
+    const bumpCategory = (key: string, label: string): CategoryRow => {
+      let row = categories.get(key);
+      if (!row) {
+        row = { key, label, credits: 0, count: 0 };
+        categories.set(key, row);
+      }
+      return row;
+    };
     const bump = (map: Map<string, SpendRow>, key: string): SpendRow => {
       let row = map.get(key);
       if (!row) {
@@ -164,16 +180,41 @@ export default function BalancePage({ onBack, onOpenNav }: { onBack: () => void;
         const modelRow = bump(models, asset.model || asset.provider || 'Unknown');
         modelRow.credits += asset.credits;
         modelRow.runs += 1;
+        // Split asset spend into image vs video generation; the rest
+        // (bg removal / layer / upscale / angles) is grouped as other compute.
+        const catKey =
+          asset.asset_type === 'image' || asset.asset_type === 'video' ? asset.asset_type : 'other';
+        const catLabel =
+          catKey === 'image'
+            ? 'Image generation'
+            : catKey === 'video'
+              ? 'Video generation'
+              : 'Other compute';
+        const cat = bumpCategory(catKey, catLabel);
+        cat.credits += asset.credits;
+        cat.count += asset.quantity > 0 ? asset.quantity : 1;
       }
       if (detail.token_credits > 0) {
         const row = bump(models, detail.model || 'Unknown');
         row.credits += detail.token_credits;
         row.runs += 1;
+        const llm = bumpCategory('llm', 'LLM calls (tokens)');
+        llm.credits += detail.token_credits;
+        llm.count += 1;
       }
     }
     const sorted = (map: Map<string, SpendRow>) =>
       [...map.values()].sort((a, b) => b.credits - a.credits);
-    return { skills: sorted(skills), assets: sorted(assets), models: sorted(models) };
+    const categoryOrder = ['image', 'video', 'llm', 'other'];
+    const categoryRows = categoryOrder
+      .map((key) => categories.get(key))
+      .filter((row): row is CategoryRow => Boolean(row));
+    return {
+      skills: sorted(skills),
+      assets: sorted(assets),
+      models: sorted(models),
+      categories: categoryRows,
+    };
   }, [invocations, details]);
 
   const hasSpend = spend.skills.length + spend.assets.length + spend.models.length > 0;
@@ -328,9 +369,27 @@ export default function BalancePage({ onBack, onOpenNav }: { onBack: () => void;
               <>
                 <h2 className="mt-10 text-xl font-bold tracking-[-0.02em]">Spend breakdown</h2>
                 <p className="mt-1 text-sm text-muted">
-                  Last {invocations.length} runs, grouped by Skill fee, asset type and model. Open a
-                  run below for its line items.
+                  Last {invocations.length} runs, split by category (image generation, video
+                  generation, LLM tokens, other compute), then by Skill fee, asset type and model.
                 </p>
+                {spend.categories.length > 0 && (
+                  <div className="mt-3 rounded-2xl border border-line bg-surface p-4 shadow-card">
+                    <div className="text-xs font-bold uppercase tracking-[0.12em] text-muted-2">
+                      By category
+                    </div>
+                    <ul className="mt-2 divide-y divide-line-soft">
+                      {spend.categories.map((row) => (
+                        <li key={row.key} className="flex items-center justify-between gap-3 py-2 text-sm">
+                          <span className="font-medium text-ink-2">{row.label}</span>
+                          <span className="flex-none text-right text-xs text-muted-2">
+                            {row.credits.toLocaleString('en-US')} cr · {row.count}
+                            {row.key === 'llm' ? ' calls' : ' tasks'}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
                 <div className="mt-3 grid gap-3 md:grid-cols-3">
                   <SpendTable title="By Skill" rows={spend.skills} empty="No Skill fees yet." />
                   <SpendTable title="By asset type" rows={spend.assets} empty="No asset charges yet." />
