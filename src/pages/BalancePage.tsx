@@ -1,9 +1,23 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Coins, Snowflake } from 'lucide-react';
+import { Coins, Snowflake, Tag, Wallet } from 'lucide-react';
 import PageShell from '../components/PageShell';
 import { useAuth } from '../auth/AuthContext';
-import { getBalance, getBillingHistory, getSkillInvocation, listSkillInvocations } from '../lib/api';
-import type { BalanceInfo, PointTransaction, SkillBilling, SkillInvocationDetail } from '../types';
+import {
+  getBalance,
+  getBillingHistory,
+  getCreatorAccount,
+  getCreatorEarnings,
+  getSkillInvocation,
+  listSkillInvocations,
+} from '../lib/api';
+import type {
+  BalanceInfo,
+  CreatorAccount,
+  CreatorLedgerEntry,
+  PointTransaction,
+  SkillBilling,
+  SkillInvocationDetail,
+} from '../types';
 
 interface SpendRow {
   key: string;
@@ -27,6 +41,21 @@ const statusText = (status: string): string => {
   if (status === 'failed') return 'failed · hold released';
   if (status === 'reserved') return 'holding credits';
   if (status === 'refunded') return 'refunded';
+  return status;
+};
+
+const earningSourceLabel = (source: string): string => {
+  if (source === 'compute') return 'Compute share';
+  if (source === 'skill_fee') return 'Skill fee share';
+  if (source === 'payout') return 'Payout';
+  return 'Adjustment';
+};
+
+const earningStatusLabel = (status: string): string => {
+  if (status === 'pending') return 'Locked';
+  if (status === 'available') return 'Available';
+  if (status === 'reversed') return 'Reversed';
+  if (status === 'paid') return 'Paid';
   return status;
 };
 
@@ -61,12 +90,16 @@ export default function BalancePage({ onBack, onOpenNav }: { onBack: () => void;
   const [invocations, setInvocations] = useState<SkillBilling[]>([]);
   const [details, setDetails] = useState<Record<number, SkillInvocationDetail>>({});
   const [openRun, setOpenRun] = useState<number | null>(null);
+  const [creator, setCreator] = useState<CreatorAccount | null>(null);
+  const [earnings, setEarnings] = useState<CreatorLedgerEntry[]>([]);
 
   useEffect(() => {
     if (!user) return;
     let cancelled = false;
     getBalance().then(setBalance).catch(() => {});
     getBillingHistory(30).then(setTransactions).catch(() => {});
+    getCreatorAccount().then(setCreator).catch(() => {});
+    getCreatorEarnings().then(setEarnings).catch(() => {});
     listSkillInvocations(20)
       .then(async (res) => {
         if (cancelled) return;
@@ -199,6 +232,96 @@ export default function BalancePage({ onBack, onOpenNav }: { onBack: () => void;
                 {balance.points_expired ? 'Credits expired on' : 'Credits expire on'}{' '}
                 {new Date(balance.points_expires_at).toLocaleDateString('en-US')}
               </p>
+            )}
+
+            {creator && (
+              <>
+                <h2 className="mt-10 text-xl font-bold tracking-[-0.02em]">Creator earnings</h2>
+                <p className="mt-1 text-sm text-muted">
+                  Skill fee share (70%) and compute share (30%). Locked earnings release
+                  automatically after the hold period.
+                </p>
+                <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  <div className="rounded-2xl border border-line bg-surface p-4 shadow-card">
+                    <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.12em] text-muted-2">
+                      <Coins className="h-4 w-4" />
+                      Available
+                    </div>
+                    <div className="mt-1.5 text-2xl font-bold tracking-[-0.03em]">
+                      {creator.available_credits.toLocaleString('en-US')}
+                    </div>
+                  </div>
+                  <div className="rounded-2xl border border-line bg-surface p-4 shadow-card">
+                    <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.12em] text-muted-2">
+                      <Snowflake className="h-4 w-4" />
+                      Locked
+                    </div>
+                    <div className="mt-1.5 text-2xl font-bold tracking-[-0.03em]">
+                      {creator.pending_credits.toLocaleString('en-US')}
+                    </div>
+                  </div>
+                  <div className="rounded-2xl border border-line bg-surface p-4 shadow-card">
+                    <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.12em] text-muted-2">
+                      <Wallet className="h-4 w-4" />
+                      In payout
+                    </div>
+                    <div className="mt-1.5 text-2xl font-bold tracking-[-0.03em]">
+                      {creator.frozen_credits.toLocaleString('en-US')}
+                    </div>
+                  </div>
+                  <div className="rounded-2xl border border-line bg-surface p-4 shadow-card">
+                    <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.12em] text-muted-2">
+                      <Tag className="h-4 w-4" />
+                      Total earned
+                    </div>
+                    <div className="mt-1.5 text-2xl font-bold tracking-[-0.03em]">
+                      {creator.total_earned_credits.toLocaleString('en-US')}
+                    </div>
+                  </div>
+                </div>
+
+                {earnings.length > 0 ? (
+                  <div className="mt-3 overflow-hidden rounded-2xl border border-line bg-surface shadow-card">
+                    <div className="flex items-center justify-between border-b border-line-soft px-4 py-2.5">
+                      <span className="text-xs font-bold uppercase tracking-[0.1em] text-muted-2">
+                        Recent earnings
+                      </span>
+                      <span className="text-xs text-muted-2">Latest {earnings.length}</span>
+                    </div>
+                    <ul className="divide-y divide-line-soft">
+                      {earnings.map((row) => (
+                        <li
+                          key={row.id}
+                          className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5"
+                        >
+                          <div className="min-w-0">
+                            <div className="truncate text-sm font-semibold">{row.skill_id ?? '—'}</div>
+                            <div className="text-xs text-muted-2">
+                              {earningSourceLabel(row.source)} · {earningStatusLabel(row.status)}
+                              {row.status === 'pending' && row.available_at
+                                ? ` · unlocks ${new Date(row.available_at).toLocaleDateString('en-US')}`
+                                : ''}
+                            </div>
+                          </div>
+                          <div
+                            className={`flex-none font-mono text-sm font-semibold ${
+                              row.credits < 0 ? 'text-danger' : 'text-success'
+                            }`}
+                          >
+                            {row.credits > 0
+                              ? `+${row.credits.toLocaleString('en-US')}`
+                              : row.credits.toLocaleString('en-US')}
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : (
+                  <p className="mt-3 text-sm text-muted">
+                    No creator earnings yet. Publish a paid Skill to start earning.
+                  </p>
+                )}
+              </>
             )}
 
             {hasSpend && (
