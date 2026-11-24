@@ -57,6 +57,11 @@ const emptySpendRow = (key: string): SpendRow => ({
 });
 
 const USAGE_PAGE_SIZE = 10;
+const SPEND_PREVIEW_ROWS = 6;
+const MODEL_CALL_PREVIEW = 10;
+
+const plural = (n: number, one: string, many: string): string =>
+  `${n} ${n === 1 ? one : many}`;
 
 const statusText = (status: string): string => {
   if (status === 'failed') return 'failed · hold released';
@@ -87,18 +92,25 @@ function SpendTable({ title, rows, empty }: { title: string; rows: SpendRow[]; e
       {rows.length === 0 ? (
         <p className="mt-2 text-sm text-muted">{empty}</p>
       ) : (
-        <ul className="mt-2 divide-y divide-line-soft">
-          {rows.slice(0, 6).map((row) => (
-            <li key={row.key} className="flex items-center justify-between gap-3 py-1.5 text-sm">
-              <span className="min-w-0 truncate text-ink-2">{row.key}</span>
-              <span className="flex-none text-right text-xs text-muted-2">
-                {row.credits.toLocaleString('en-US')} cr
-                {row.freeRuns > 0 ? ` · ${row.freeRuns} free` : ''}
-                {row.failed > 0 ? ` · ${row.failed} failed` : ''}
-              </span>
-            </li>
-          ))}
-        </ul>
+        <>
+          <ul className="mt-2 divide-y divide-line-soft">
+            {rows.slice(0, SPEND_PREVIEW_ROWS).map((row) => (
+              <li key={row.key} className="flex items-center justify-between gap-3 py-1.5 text-sm">
+                <span className="min-w-0 truncate text-ink-2">{row.key}</span>
+                <span className="flex-none text-right text-xs text-muted-2">
+                  {row.credits.toLocaleString('en-US')} cr
+                  {row.freeRuns > 0 ? ` · ${row.freeRuns} free` : ''}
+                  {row.failed > 0 ? ` · ${row.failed} failed` : ''}
+                </span>
+              </li>
+            ))}
+          </ul>
+          {rows.length > SPEND_PREVIEW_ROWS && (
+            <div className="mt-1 text-right text-micro font-semibold uppercase tracking-[0.08em] text-muted-2">
+              +{rows.length - SPEND_PREVIEW_ROWS} more
+            </div>
+          )}
+        </>
       )}
     </div>
   );
@@ -114,6 +126,7 @@ export default function BalancePage({ onBack, onOpenNav }: { onBack: () => void;
   const [creator, setCreator] = useState<CreatorAccount | null>(null);
   const [earnings, setEarnings] = useState<CreatorLedgerEntry[]>([]);
   const [usagePage, setUsagePage] = useState(0);
+  const [showAllModelCalls, setShowAllModelCalls] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -298,6 +311,18 @@ export default function BalancePage({ onBack, onOpenNav }: { onBack: () => void;
     safeUsagePage * USAGE_PAGE_SIZE + USAGE_PAGE_SIZE,
   );
 
+  const modelCallsVisible = showAllModelCalls ? modelCalls : modelCalls.slice(0, MODEL_CALL_PREVIEW);
+
+  // Every signed-in user gets a creator account row from the backend, so only
+  // show the section when there is actual activity to avoid a 0/0/0/0 panel.
+  const creatorHasActivity =
+    !!creator &&
+    (creator.available_credits > 0 ||
+      creator.pending_credits > 0 ||
+      creator.frozen_credits > 0 ||
+      creator.total_earned_credits > 0 ||
+      earnings.length > 0);
+
   return (
     <PageShell title="Balance & usage" onBack={onBack} onOpenNav={onOpenNav}>
         {!user ? (
@@ -354,7 +379,7 @@ export default function BalancePage({ onBack, onOpenNav }: { onBack: () => void;
               </p>
             )}
 
-            {creator && (
+            {creator && creatorHasActivity && (
               <>
                 <h2 className="mt-10 text-xl font-bold tracking-[-0.02em]">Creator earnings</h2>
                 <p className="mt-1 text-sm text-muted">
@@ -461,8 +486,10 @@ export default function BalancePage({ onBack, onOpenNav }: { onBack: () => void;
                         <li key={row.key} className="flex items-center justify-between gap-3 py-2 text-sm">
                           <span className="font-medium text-ink-2">{row.label}</span>
                           <span className="flex-none text-right text-xs text-muted-2">
-                            {row.credits.toLocaleString('en-US')} cr · {row.count}
-                            {row.key === 'llm' ? ' calls' : ' tasks'}
+                            {row.credits.toLocaleString('en-US')} cr ·{' '}
+                            {row.key === 'llm'
+                              ? plural(row.count, 'call', 'calls')
+                              : plural(row.count, 'task', 'tasks')}
                           </span>
                         </li>
                       ))}
@@ -504,12 +531,11 @@ export default function BalancePage({ onBack, onOpenNav }: { onBack: () => void;
                       Detail
                     </span>
                     <span className="text-xs text-muted-2">
-                      Latest {Math.min(50, modelCalls.length)}
-                      {modelCalls.length > 50 ? ` of ${modelCalls.length}` : ''}
+                      {modelCallsVisible.length} of {modelCalls.length}
                     </span>
                   </div>
                   <ul className="divide-y divide-line-soft">
-                    {modelCalls.slice(0, 50).map((row) => (
+                    {modelCallsVisible.map((row) => (
                       <li
                         key={row.key}
                         className="flex flex-wrap items-center justify-between gap-2 px-4 py-3"
@@ -547,6 +573,15 @@ export default function BalancePage({ onBack, onOpenNav }: { onBack: () => void;
                       </li>
                     ))}
                   </ul>
+                  {modelCalls.length > MODEL_CALL_PREVIEW && (
+                    <button
+                      type="button"
+                      onClick={() => setShowAllModelCalls((value) => !value)}
+                      className="w-full border-t border-line-soft px-4 py-2 text-xs font-semibold text-muted-2 transition-colors hover:text-ink"
+                    >
+                      {showAllModelCalls ? 'Show less' : `Show all ${modelCalls.length}`}
+                    </button>
+                  )}
                 </div>
               </>
             )}
@@ -571,6 +606,7 @@ export default function BalancePage({ onBack, onOpenNav }: { onBack: () => void;
                         <button
                           type="button"
                           aria-expanded={expanded}
+                          aria-controls={`run-detail-${run.invocation_id}`}
                           onClick={() => setOpenRun(expanded ? null : run.invocation_id)}
                           className="w-full px-4 py-3 text-left transition-colors hover:bg-paper"
                         >
@@ -625,7 +661,10 @@ export default function BalancePage({ onBack, onOpenNav }: { onBack: () => void;
                           </div>
                         </button>
                         {expanded && (
-                          <div className="border-t border-line-soft bg-paper/60 px-4 py-3 text-xs">
+                          <div
+                            id={`run-detail-${run.invocation_id}`}
+                            className="border-t border-line-soft bg-paper/60 px-4 py-3 text-xs"
+                          >
                             {detail ? (
                               <>
                                 <div className="flex flex-wrap gap-x-3 gap-y-1 text-muted-2">
@@ -705,9 +744,11 @@ export default function BalancePage({ onBack, onOpenNav }: { onBack: () => void;
             )}
 
             <h2 className="mt-10 text-xl font-bold tracking-[-0.02em]">Usage history</h2>
-            <p className="mt-1 text-sm text-muted">
-              Latest {transactions.length} ledger entries, {USAGE_PAGE_SIZE} per page.
-            </p>
+            {transactions.length > 0 && (
+              <p className="mt-1 text-sm text-muted">
+                Latest {transactions.length} ledger entries, {USAGE_PAGE_SIZE} per page.
+              </p>
+            )}
             {transactions.length === 0 ? (
               <p className="mt-3 text-sm text-muted">No usage yet.</p>
             ) : (
@@ -742,7 +783,10 @@ export default function BalancePage({ onBack, onOpenNav }: { onBack: () => void;
                   </ul>
                 </div>
                 {usagePageCount > 1 && (
-                  <div className="mt-3 flex items-center justify-between gap-3">
+                  <nav
+                    aria-label="Usage history pages"
+                    className="mt-3 flex items-center justify-between gap-3"
+                  >
                     <span className="text-xs text-muted-2">
                       Page {safeUsagePage + 1} / {usagePageCount}
                     </span>
@@ -764,7 +808,7 @@ export default function BalancePage({ onBack, onOpenNav }: { onBack: () => void;
                         Next
                       </button>
                     </div>
-                  </div>
+                  </nav>
                 )}
               </>
             )}
