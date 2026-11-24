@@ -74,9 +74,13 @@ export interface CreatedApiKey extends ApiKeyItem {
   api_key: string;
 }
 
+/** How much extended thinking / reasoning budget the model may spend. */
+export type ThinkingDepth = 'low' | 'medium' | 'high';
+
 export interface ModelOption {
   id: string;
   label: string;
+  supportsThinking?: boolean;
 }
 
 export interface MediaBlock {
@@ -228,6 +232,8 @@ export interface Session {
   title: string;
   skillIds: string[];
   model: string | null;
+  /** Persisted thinking depth for this conversation; null means model default. */
+  thinkingDepth: ThinkingDepth | null;
   pinned: boolean;
   updatedAt: number;
 }

@@ -13,9 +13,9 @@ export const SKILLS: Skill[] = [
 ];
 
 export const MODELS: ModelOption[] = [
-  { id: 'anthropic:claude-opus-5', label: 'Claude Opus 5' },
-  { id: 'openai:gpt-6-astra', label: 'GPT-6 Astra' },
-  { id: 'deepseek:deepseek-flash', label: 'DeepSeek 4.1 Flash' },
+  { id: 'anthropic:claude-opus-5', label: 'Claude Opus 5', supportsThinking: true },
+  { id: 'openai:gpt-6-astra', label: 'GPT-6 Astra', supportsThinking: true },
+  { id: 'deepseek:deepseek-flash', label: 'DeepSeek 4.1 Flash', supportsThinking: true },
 ];
 
 // Emoji per skill id, so skills fetched from the backend get the same warm

@@ -15,7 +15,7 @@ import ApiKeysPage from './ApiKeysPage';
 import { MODELS, SKILLS } from '../data/skills';
 import { chatStream, deleteSession, getSessionMessages, getShareStatus, listModels, listSessions, listSkills, pinSession, previewSkillPricing, renameSession, setShareIndexing, shareSession, unshareSession } from '../lib/api';
 import type { ShareStatus } from '../lib/api';
-import type { Attachment, MediaBlock, Message, Session, SkillPricingPreview, View } from '../types';
+import type { Attachment, MediaBlock, Message, Session, SkillPricingPreview, ThinkingDepth, View } from '../types';
 import { uid } from '../lib/utils';
 
 const DEFAULT_MODEL = 'anthropic:claude-opus-5';
@@ -39,6 +39,8 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
   const [model, setModel] = useState(DEFAULT_MODEL);
+  // null ⇒ let the model use its own default thinking budget.
+  const [thinkingDepth, setThinkingDepth] = useState<ThinkingDepth | null>(null);
   const [draft, setDraft] = useState('');
   const [pendingAuto, setPendingAuto] = useState<{ skill: string; message: string } | null>(null);
   const [streaming, setStreaming] = useState(false);
@@ -165,6 +167,7 @@ export default function ChatPage() {
     setActiveId(null);
     setMessages([]);
     setSelectedSkills([]);
+    setThinkingDepth(null);
     setPreview(null);
     setShareInfo({ shared: false, indexable: false });
     setDraft('');
@@ -186,7 +189,11 @@ export default function ChatPage() {
       const s = sessions.find((x) => x.id === id);
       if (s) {
         setSelectedSkills(s.skillIds);
-        setModel(s.model && models.some((m) => m.id === s.model) ? s.model : DEFAULT_MODEL);
+        const sessionModel = s.model && models.some((m) => m.id === s.model) ? s.model : DEFAULT_MODEL;
+        setModel(sessionModel);
+        // Only models that support thinking can have a stored depth.
+        const supportsThinking = models.find((m) => m.id === sessionModel)?.supportsThinking !== false;
+        setThinkingDepth(supportsThinking ? s.thinkingDepth : null);
       }
       setLoadingHistory(true);
       try {
@@ -203,6 +210,16 @@ export default function ChatPage() {
   const toggleSkill = useCallback((id: string) => {
     setSelectedSkills((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   }, []);
+
+  const handleModelChange = useCallback(
+    (id: string) => {
+      setModel(id);
+      // A depth left over from a thinking-capable model would be rejected/ignored
+      // by one without support, so drop back to the model default.
+      if (models.find((m) => m.id === id)?.supportsThinking === false) setThinkingDepth(null);
+    },
+    [models],
+  );
 
   const handleDeleteSession = useCallback(
     async (id: string) => {
@@ -308,10 +325,12 @@ export default function ChatPage() {
       skillIdsOverride?: string[],
       sessionIdOverride?: string | null,
       modelOverride?: string,
+      thinkingDepthOverride?: ThinkingDepth | null,
     ) => {
       const skillIds = skillIdsOverride ?? selectedSkills;
       const requestSessionId = sessionIdOverride === undefined ? activeId : sessionIdOverride;
       const requestModel = modelOverride ?? model;
+      const requestDepth = thinkingDepthOverride === undefined ? thinkingDepth : thinkingDepthOverride;
       const content = attachments.length > 0 ? buildMessageWithAttachments(text, attachments) : text.trim();
       if (!content || streamingRef.current) return;
       if (skillIds.length === 0) {
@@ -338,7 +357,13 @@ export default function ChatPage() {
 
       try {
         const sessionId = await chatStream(
-          { skillIds, message: content, sessionId: requestSessionId, model: requestModel || undefined },
+          {
+            skillIds,
+            message: content,
+            sessionId: requestSessionId,
+            model: requestModel || undefined,
+            thinkingDepth: requestDepth,
+          },
           {
             onText: (t) => {
               acc += t;
@@ -386,7 +411,7 @@ export default function ChatPage() {
         setStreaming(false);
       }
     },
-    [selectedSkills, model, activeId, refreshSessions],
+    [selectedSkills, model, thinkingDepth, activeId, refreshSessions],
   );
 
   // The composer clears its draft only when this returns true.
@@ -416,7 +441,8 @@ export default function ChatPage() {
     setSelectedSkills(skillIds);
     if (forkedModel) setModel(forkedModel);
     void selectSession(openSessionId).then(() =>
-      sendMessage(autoMessage, [], skillIds, openSessionId, forkedModel ?? undefined),
+      // A fork starts fresh, so let the model use its default thinking depth.
+      sendMessage(autoMessage, [], skillIds, openSessionId, forkedModel ?? undefined, null),
     );
   }, [user, location.state, navigate, selectSession, sendMessage]);
 
@@ -520,7 +546,9 @@ export default function ChatPage() {
             pricingPreview={pricingPreview}
             models={models}
             model={model}
-            onModelChange={setModel}
+            onModelChange={handleModelChange}
+            thinkingDepth={thinkingDepth}
+            onThinkingDepthChange={setThinkingDepth}
             composerKey={composerKey}
             onOpenNav={() => setMobileNavOpen(true)}
             shareInfo={shareInfo}

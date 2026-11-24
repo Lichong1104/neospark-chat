@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowDown, ArrowUp, Check, ChevronDown, Copy, FileText, Globe, Loader2, Menu, Paperclip, Search, Share2, Sparkles, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, Brain, Check, ChevronDown, Copy, FileText, Globe, Loader2, Menu, Paperclip, Search, Share2, Sparkles, X } from 'lucide-react';
 import { toast } from 'sonner';
-import type { Attachment, MediaBlock, Message as ChatMessage, ModelOption, Skill, SkillPricingItem, SkillPricingPreview } from '../types';
+import type { Attachment, MediaBlock, Message as ChatMessage, ModelOption, Skill, SkillPricingItem, SkillPricingPreview, ThinkingDepth } from '../types';
 import { Message } from './Message';
 import { previewSkillPricing, uploadFile } from '../lib/api';
 import type { ShareStatus } from '../lib/api';
@@ -28,6 +28,9 @@ interface ChatAreaProps {
   models: ModelOption[];
   model: string;
   onModelChange: (id: string) => void;
+  /** null means "use the model's default thinking budget". */
+  thinkingDepth: ThinkingDepth | null;
+  onThinkingDepthChange: (depth: ThinkingDepth | null) => void;
   /** Bumped whenever the conversation changes (new chat / switch / delete). */
   composerKey: number;
   onOpenNav: () => void;
@@ -38,6 +41,13 @@ interface ChatAreaProps {
   onDisableShare: () => void | Promise<void>;
   onToggleIndexing: (indexable: boolean) => void | Promise<void>;
 }
+
+const THINKING_OPTIONS: { value: ThinkingDepth | null; label: string; hint: string }[] = [
+  { value: null, label: 'Default', hint: "The model's own default budget" },
+  { value: 'low', label: 'Low', hint: 'Fastest, least reasoning' },
+  { value: 'medium', label: 'Medium', hint: 'Balanced' },
+  { value: 'high', label: 'High', hint: 'Most thorough, slowest' },
+];
 
 const SUGGESTIONS = [
   'Generate a 9-grid e-commerce detail page visual plan',
@@ -195,6 +205,8 @@ export default function ChatArea({
   models,
   model,
   onModelChange,
+  thinkingDepth,
+  onThinkingDepthChange,
   composerKey,
   onOpenNav,
   shareInfo,
@@ -207,6 +219,7 @@ export default function ChatArea({
   const editorRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const modelRef = useRef<HTMLDivElement>(null);
+  const thinkingRef = useRef<HTMLDivElement>(null);
   const dragDepth = useRef(0);
   /** Caret position captured when the @ menu opens, used when inserting a chip. */
   const savedRangeRef = useRef<Range | null>(null);
@@ -214,6 +227,7 @@ export default function ChatArea({
   const [uploading, setUploading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const [modelOpen, setModelOpen] = useState(false);
+  const [thinkingOpen, setThinkingOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [shareBusy, setShareBusy] = useState(false);
   const shareRef = useRef<HTMLDivElement>(null);
@@ -337,6 +351,22 @@ export default function ChatArea({
   }, [modelOpen]);
 
   useEffect(() => {
+    if (!thinkingOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (thinkingRef.current && !thinkingRef.current.contains(e.target as Node)) setThinkingOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setThinkingOpen(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [thinkingOpen]);
+
+  useEffect(() => {
     if (!shareOpen) return;
     const onDown = (e: MouseEvent) => {
       if (shareRef.current && !shareRef.current.contains(e.target as Node)) setShareOpen(false);
@@ -417,6 +447,15 @@ export default function ChatArea({
   }, [slashOpen, authenticated, quoteKey, skills, model]);
 
   const modelLabel = model ? models.find((m) => m.id === model)?.label ?? model : 'Model';
+  // Only hide the control when the catalogue explicitly says a model can't think;
+  // an older backend that omits the flag still accepts thinking_depth.
+  const thinkingSupported = models.find((m) => m.id === model)?.supportsThinking !== false;
+  const thinkingLabel = THINKING_OPTIONS.find((o) => o.value === thinkingDepth)?.label ?? 'Default';
+
+  // Switching to a model without thinking support must not leave the depth menu open.
+  useEffect(() => {
+    if (!thinkingSupported) setThinkingOpen(false);
+  }, [thinkingSupported]);
 
   // Free runs still available after this quote (sums the Skills it covers).
   const freeRunsLeft =
@@ -1044,7 +1083,10 @@ export default function ChatArea({
               <div className="relative min-w-0" ref={modelRef}>
                 <button
                   type="button"
-                  onClick={() => setModelOpen((v) => !v)}
+                  onClick={() => {
+                    setThinkingOpen(false);
+                    setModelOpen((v) => !v);
+                  }}
                   disabled={streaming}
                   aria-haspopup="menu"
                   aria-expanded={modelOpen}
@@ -1087,6 +1129,66 @@ export default function ChatArea({
                   </div>
                 )}
               </div>
+              {thinkingSupported && (
+                <div className="relative flex-none" ref={thinkingRef}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setModelOpen(false);
+                      setThinkingOpen((v) => !v);
+                    }}
+                    disabled={streaming}
+                    aria-haspopup="menu"
+                    aria-expanded={thinkingOpen}
+                    aria-label={`Thinking depth: ${thinkingLabel}`}
+                    title={`Thinking depth: ${thinkingLabel}`}
+                    className={cn(
+                      'flex h-10 items-center gap-1 rounded-xl px-2 text-sm font-semibold transition-colors hover:bg-line-soft hover:text-ink disabled:cursor-not-allowed disabled:opacity-40',
+                      thinkingDepth ? 'text-ink-2' : 'text-muted-2',
+                    )}
+                  >
+                    <Brain className="h-4 w-4 flex-none" />
+                    <span className="hidden truncate min-[420px]:block">{thinkingLabel}</span>
+                    <ChevronDown
+                      className={cn(
+                        'h-3.5 w-3.5 flex-none transition-transform',
+                        thinkingOpen && 'rotate-180',
+                      )}
+                    />
+                  </button>
+                  {thinkingOpen && (
+                    <div
+                      role="menu"
+                      aria-label="Thinking depth"
+                      className="absolute bottom-full right-0 z-30 mb-1 w-44 overflow-hidden rounded-xl border border-line bg-surface p-1 shadow-panel"
+                    >
+                      {THINKING_OPTIONS.map((opt) => {
+                        const checked = thinkingDepth === opt.value;
+                        return (
+                          <button
+                            key={opt.label}
+                            type="button"
+                            role="menuitemradio"
+                            aria-checked={checked}
+                            title={opt.hint}
+                            onClick={() => {
+                              onThinkingDepthChange(opt.value);
+                              setThinkingOpen(false);
+                            }}
+                            className={cn(
+                              'flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-left text-sm font-semibold transition-colors',
+                              checked ? 'bg-line-soft text-ink' : 'text-ink-2 hover:bg-paper',
+                            )}
+                          >
+                            <span className="min-w-0 truncate">{opt.label}</span>
+                            {checked && <Check className="h-3.5 w-3.5 flex-none text-orange-ink" />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
               <button
                 type="button"
                 onClick={send}

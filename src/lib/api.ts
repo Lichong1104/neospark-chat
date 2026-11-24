@@ -1,6 +1,6 @@
 import axios, { AxiosHeaders } from 'axios';
 import type { InternalAxiosRequestConfig } from 'axios';
-import type { ApiKeyListData, BalanceInfo, BillingState, ConfirmPrompt, CreatedApiKey, CreatorAccount, CreatorLedgerEntry, MediaBlock, ModelOption, PlanStep, PointTransaction, Session, Skill, SkillBilling, SkillInvocationDetail, SkillPricingPreview, SkillReviewsSummary, UserInfo } from '../types';
+import type { ApiKeyListData, BalanceInfo, BillingState, ConfirmPrompt, CreatedApiKey, CreatorAccount, CreatorLedgerEntry, MediaBlock, ModelOption, PlanStep, PointTransaction, Session, Skill, SkillBilling, SkillInvocationDetail, SkillPricingPreview, SkillReviewsSummary, ThinkingDepth, UserInfo } from '../types';
 import { emojiFor } from '../data/skills';
 
 const API_BASE =
@@ -387,6 +387,7 @@ interface BackendSession {
   title?: string;
   skill_ids?: string[];
   model?: string | null;
+  thinking_depth?: ThinkingDepth | null;
   updated_at?: string;
   pinned?: boolean;
 }
@@ -413,6 +414,7 @@ export async function listSessions(): Promise<Session[]> {
     title: s.title || 'New chat',
     skillIds: s.skill_ids ?? [],
     model: s.model ?? null,
+    thinkingDepth: s.thinking_depth ?? null,
     pinned: Boolean(s.pinned),
     updatedAt: s.updated_at ? new Date(s.updated_at).getTime() : Date.now(),
   }));
@@ -704,11 +706,12 @@ export async function chatStream(
     message: string;
     sessionId?: string | null;
     model?: string;
+    thinkingDepth?: ThinkingDepth | null;
   },
   handlers: ChatStreamHandlers,
   signal?: AbortSignal,
 ): Promise<string | null> {
-  const { skillIds, message, sessionId, model } = params;
+  const { skillIds, message, sessionId, model, thinkingDepth } = params;
   const isMulti = skillIds.length > 1;
   const path = isMulti ? '/agents/chat/multi/stream' : '/agents/chat/stream';
   const body: Record<string, unknown> = isMulti
@@ -716,6 +719,9 @@ export async function chatStream(
     : { skill_id: skillIds[0], message };
   if (sessionId) body.session_id = sessionId;
   if (model) body.model_override = model;
+  // Omitted entirely means "use the model default", which is not the same as
+  // the backend's low/medium/high values — send it only when the user picked one.
+  if (thinkingDepth) body.thinking_depth = thinkingDepth;
 
   const token = getToken();
   const res = await fetch(`${API_BASE}${path}`, {
