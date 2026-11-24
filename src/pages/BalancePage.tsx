@@ -35,6 +35,18 @@ interface CategoryRow {
   count: number;
 }
 
+interface ModelCallRow {
+  key: string;
+  tag: string;
+  label: string;
+  credits: number;
+  detailText: string;
+  status: string;
+  error: string | null;
+  time: string | null;
+  invocationId: number;
+}
+
 const emptySpendRow = (key: string): SpendRow => ({
   key,
   runs: 0,
@@ -225,6 +237,47 @@ export default function BalancePage({ onBack, onOpenNav }: { onBack: () => void;
       categories: categoryRows,
     };
   }, [invocations, details]);
+
+  const modelCalls = useMemo(() => {
+    const rows: ModelCallRow[] = [];
+    for (const detail of Object.values(details)) {
+      if (detail.token_credits > 0) {
+        rows.push({
+          key: `llm:${detail.invocation_id}`,
+          tag: 'LLM',
+          label: detail.model || 'Unknown model',
+          credits: detail.token_credits,
+          detailText: `in ${detail.input_tokens.toLocaleString('en-US')} / out ${detail.output_tokens.toLocaleString('en-US')}`,
+          status: detail.error_code ? 'failed' : 'settled',
+          error: detail.error_code,
+          time: detail.settled_at || detail.created_at,
+          invocationId: detail.invocation_id,
+        });
+      }
+      for (const asset of detail.assets) {
+        rows.push({
+          key: `asset:${asset.id}`,
+          tag: asset.asset_type || 'asset',
+          label: [asset.provider, asset.model].filter(Boolean).join(' · ') || 'Unknown model',
+          credits: asset.credits,
+          detailText:
+            asset.quantity > 1
+              ? `${asset.unit_credits} cr × ${asset.quantity}`
+              : `${asset.unit_credits} cr each`,
+          status: asset.status,
+          error: asset.error_code,
+          time: asset.completed_at || asset.created_at,
+          invocationId: detail.invocation_id,
+        });
+      }
+    }
+    rows.sort((a, b) => {
+      const at = a.time ? new Date(a.time).getTime() : 0;
+      const bt = b.time ? new Date(b.time).getTime() : 0;
+      return bt - at;
+    });
+    return rows;
+  }, [details]);
 
   const hasSpend =
     spend.skills.length +
@@ -424,6 +477,66 @@ export default function BalancePage({ onBack, onOpenNav }: { onBack: () => void;
                       empty="No other compute yet."
                     />
                   )}
+                </div>
+              </>
+            )}
+
+            {modelCalls.length > 0 && (
+              <>
+                <h2 className="mt-10 text-xl font-bold tracking-[-0.02em]">Model calls</h2>
+                <p className="mt-1 text-sm text-muted">
+                  Each model task from your last {invocations.length} runs, newest first. LLM rows
+                  show token usage; image/video rows show unit price × quantity.
+                </p>
+                <div className="mt-3 overflow-hidden rounded-2xl border border-line bg-surface shadow-card">
+                  <div className="flex items-center justify-between border-b border-line-soft px-4 py-2.5">
+                    <span className="text-xs font-bold uppercase tracking-[0.1em] text-muted-2">
+                      Detail
+                    </span>
+                    <span className="text-xs text-muted-2">
+                      Latest {Math.min(50, modelCalls.length)}
+                      {modelCalls.length > 50 ? ` of ${modelCalls.length}` : ''}
+                    </span>
+                  </div>
+                  <ul className="divide-y divide-line-soft">
+                    {modelCalls.slice(0, 50).map((row) => (
+                      <li
+                        key={row.key}
+                        className="flex flex-wrap items-center justify-between gap-2 px-4 py-3"
+                      >
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={
+                                row.tag === 'LLM'
+                                  ? 'flex-none rounded-full bg-orange/15 px-2 py-0.5 text-micro font-bold uppercase tracking-[0.08em] text-orange-ink'
+                                  : 'flex-none rounded-full bg-line-soft px-2 py-0.5 text-micro font-bold uppercase tracking-[0.08em] text-muted-2'
+                              }
+                            >
+                              {row.tag}
+                            </span>
+                            <span className="min-w-0 truncate text-sm font-semibold">{row.label}</span>
+                          </div>
+                          <div className="mt-0.5 text-xs text-muted-2">
+                            {row.detailText} · run #{row.invocationId}
+                            {row.time ? ` · ${new Date(row.time).toLocaleString('en-US')}` : ''}
+                            {row.status === 'failed'
+                              ? ` · failed${row.error ? ` (${row.error})` : ''}`
+                              : ''}
+                          </div>
+                        </div>
+                        <div
+                          className={`flex-none font-mono text-sm font-semibold ${
+                            row.status === 'failed' ? 'text-muted-2' : 'text-ink'
+                          }`}
+                        >
+                          {row.status === 'failed'
+                            ? 'failed'
+                            : `${row.credits.toLocaleString('en-US')} cr`}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               </>
             )}
