@@ -267,6 +267,32 @@ export interface BalanceInfo {
   points_expired: boolean;
 }
 
+/** Creator revenue account from GET /creator/account. */
+export interface CreatorAccount {
+  user_id: number;
+  available_credits: number;
+  pending_credits: number;
+  frozen_credits: number;
+  total_earned_credits: number;
+  total_paid_credits: number;
+  status: string;
+}
+
+/** One creator earnings entry from GET /creator/earnings. */
+export interface CreatorLedgerEntry {
+  id: number;
+  invocation_id: number | null;
+  skill_id: string | null;
+  entry_type: string;
+  source: 'skill_fee' | 'compute' | 'payout' | 'adjustment' | string;
+  credits: number;
+  status: string;
+  available_at: string | null;
+  settlement_rate: number;
+  note: string | null;
+  created_at: string | null;
+}
+
 /** A single credit ledger entry from GET /drawing/billing/history. */
 export interface PointTransaction {
   id: number;

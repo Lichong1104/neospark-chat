@@ -1,6 +1,6 @@
 import axios, { AxiosHeaders } from 'axios';
 import type { InternalAxiosRequestConfig } from 'axios';
-import type { ApiKeyListData, BalanceInfo, BillingState, ConfirmPrompt, CreatedApiKey, MediaBlock, ModelOption, PlanStep, PointTransaction, Session, Skill, SkillBilling, SkillInvocationDetail, SkillPricingPreview, SkillReviewsSummary, UserInfo } from '../types';
+import type { ApiKeyListData, BalanceInfo, BillingState, ConfirmPrompt, CreatedApiKey, CreatorAccount, CreatorLedgerEntry, MediaBlock, ModelOption, PlanStep, PointTransaction, Session, Skill, SkillBilling, SkillInvocationDetail, SkillPricingPreview, SkillReviewsSummary, UserInfo } from '../types';
 import { emojiFor } from '../data/skills';
 
 const API_BASE =
@@ -332,6 +332,20 @@ export async function getBillingState(): Promise<BillingState> {
 
 export async function getBalance(): Promise<BalanceInfo> {
   return (await http.get('/balance/balance')) as unknown as BalanceInfo;
+}
+
+/* ------------------------------------------------------------- creator -- */
+
+export async function getCreatorAccount(): Promise<CreatorAccount | null> {
+  const res = (await http.get('/creator/account')) as unknown as { data?: CreatorAccount };
+  return res?.data ?? null;
+}
+
+export async function getCreatorEarnings(limit = 8): Promise<CreatorLedgerEntry[]> {
+  const res = (await http.get('/creator/earnings', { params: { limit } })) as unknown as {
+    data?: { earnings?: CreatorLedgerEntry[] };
+  };
+  return res?.data?.earnings ?? [];
 }
 
 export async function createCheckout(plan: string, interval: string): Promise<string> {
