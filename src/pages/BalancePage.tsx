@@ -138,7 +138,10 @@ export default function BalancePage({ onBack, onOpenNav }: { onBack: () => void;
   const spend = useMemo(() => {
     const skills = new Map<string, SpendRow>();
     const assets = new Map<string, SpendRow>();
-    const models = new Map<string, SpendRow>();
+    const llmModels = new Map<string, SpendRow>();
+    const imageModels = new Map<string, SpendRow>();
+    const videoModels = new Map<string, SpendRow>();
+    const otherModels = new Map<string, SpendRow>();
     const categories = new Map<string, CategoryRow>();
     const seen = new Set<string>();
     const bumpCategory = (key: string, label: string): CategoryRow => {
@@ -177,9 +180,6 @@ export default function BalancePage({ onBack, onOpenNav }: { onBack: () => void;
         row.runs += 1;
         row.credits += asset.credits;
         if (asset.status === 'failed') row.failed += 1;
-        const modelRow = bump(models, asset.model || asset.provider || 'Unknown');
-        modelRow.credits += asset.credits;
-        modelRow.runs += 1;
         // Split asset spend into image vs video generation; the rest
         // (bg removal / layer / upscale / angles) is grouped as other compute.
         const catKey =
@@ -193,9 +193,15 @@ export default function BalancePage({ onBack, onOpenNav }: { onBack: () => void;
         const cat = bumpCategory(catKey, catLabel);
         cat.credits += asset.credits;
         cat.count += asset.quantity > 0 ? asset.quantity : 1;
+        const modelLabel = [asset.provider, asset.model].filter(Boolean).join(' · ') || 'Unknown';
+        const modelMap =
+          catKey === 'image' ? imageModels : catKey === 'video' ? videoModels : otherModels;
+        const modelRow = bump(modelMap, modelLabel);
+        modelRow.credits += asset.credits;
+        modelRow.runs += 1;
       }
       if (detail.token_credits > 0) {
-        const row = bump(models, detail.model || 'Unknown');
+        const row = bump(llmModels, detail.model || 'Unknown');
         row.credits += detail.token_credits;
         row.runs += 1;
         const llm = bumpCategory('llm', 'LLM calls (tokens)');
@@ -212,12 +218,22 @@ export default function BalancePage({ onBack, onOpenNav }: { onBack: () => void;
     return {
       skills: sorted(skills),
       assets: sorted(assets),
-      models: sorted(models),
+      llmModels: sorted(llmModels),
+      imageModels: sorted(imageModels),
+      videoModels: sorted(videoModels),
+      otherModels: sorted(otherModels),
       categories: categoryRows,
     };
   }, [invocations, details]);
 
-  const hasSpend = spend.skills.length + spend.assets.length + spend.models.length > 0;
+  const hasSpend =
+    spend.skills.length +
+      spend.assets.length +
+      spend.llmModels.length +
+      spend.imageModels.length +
+      spend.videoModels.length +
+      spend.otherModels.length >
+    0;
 
   return (
     <PageShell title="Balance & usage" onBack={onBack} onOpenNav={onOpenNav}>
@@ -390,10 +406,24 @@ export default function BalancePage({ onBack, onOpenNav }: { onBack: () => void;
                     </ul>
                   </div>
                 )}
-                <div className="mt-3 grid gap-3 md:grid-cols-3">
+                <div className="mt-3 grid gap-3 md:grid-cols-2">
                   <SpendTable title="By Skill" rows={spend.skills} empty="No Skill fees yet." />
                   <SpendTable title="By asset type" rows={spend.assets} empty="No asset charges yet." />
-                  <SpendTable title="By model" rows={spend.models} empty="No model usage yet." />
+                </div>
+                <h3 className="mt-6 text-sm font-bold uppercase tracking-[0.1em] text-muted-2">
+                  By model
+                </h3>
+                <div className="mt-3 grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+                  <SpendTable title="LLM models" rows={spend.llmModels} empty="No LLM usage yet." />
+                  <SpendTable title="Image models" rows={spend.imageModels} empty="No image models yet." />
+                  <SpendTable title="Video models" rows={spend.videoModels} empty="No video models yet." />
+                  {spend.otherModels.length > 0 && (
+                    <SpendTable
+                      title="Other compute models"
+                      rows={spend.otherModels}
+                      empty="No other compute yet."
+                    />
+                  )}
                 </div>
               </>
             )}
@@ -478,8 +508,9 @@ export default function BalancePage({ onBack, onOpenNav }: { onBack: () => void;
                                 <div className="flex flex-wrap gap-x-3 gap-y-1 text-muted-2">
                                   <span>Model {detail.model || '—'}</span>
                                   <span>
-                                    Tokens {detail.token_credits} (
-                                    {(detail.input_tokens + detail.output_tokens).toLocaleString('en-US')} tokens)
+                                    Tokens {detail.token_credits} (in{' '}
+                                    {detail.input_tokens.toLocaleString('en-US')} / out{' '}
+                                    {detail.output_tokens.toLocaleString('en-US')})
                                   </span>
                                   <span>Assets {detail.asset_credits}</span>
                                   {detail.error_code && (
@@ -518,8 +549,9 @@ export default function BalancePage({ onBack, onOpenNav }: { onBack: () => void;
                                         }`}
                                       >
                                         <span>
-                                          {asset.asset_type} · {asset.model || asset.provider || 'task'}
-                                          {asset.quantity > 1 ? ` ×${asset.quantity}` : ''}
+                                          {asset.asset_type} ·{' '}
+                                          {[asset.provider, asset.model].filter(Boolean).join(' · ') ||
+                                            'task'}
                                         </span>
                                         <span
                                           className={
@@ -528,7 +560,9 @@ export default function BalancePage({ onBack, onOpenNav }: { onBack: () => void;
                                         >
                                           {asset.status === 'failed'
                                             ? `failed${asset.error_code ? ` (${asset.error_code})` : ''}`
-                                            : `${asset.credits} credits`}
+                                            : asset.quantity > 1
+                                              ? `${asset.unit_credits} cr × ${asset.quantity} = ${asset.credits}`
+                                              : `${asset.credits} credits`}
                                         </span>
                                       </li>
                                     ))}
