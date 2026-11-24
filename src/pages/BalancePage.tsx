@@ -56,6 +56,8 @@ const emptySpendRow = (key: string): SpendRow => ({
   failed: 0,
 });
 
+const USAGE_PAGE_SIZE = 10;
+
 const statusText = (status: string): string => {
   if (status === 'failed') return 'failed · hold released';
   if (status === 'reserved') return 'holding credits';
@@ -111,12 +113,13 @@ export default function BalancePage({ onBack, onOpenNav }: { onBack: () => void;
   const [openRun, setOpenRun] = useState<number | null>(null);
   const [creator, setCreator] = useState<CreatorAccount | null>(null);
   const [earnings, setEarnings] = useState<CreatorLedgerEntry[]>([]);
+  const [usagePage, setUsagePage] = useState(0);
 
   useEffect(() => {
     if (!user) return;
     let cancelled = false;
     getBalance().then(setBalance).catch(() => {});
-    getBillingHistory(30).then(setTransactions).catch(() => {});
+    getBillingHistory(20).then(setTransactions).catch(() => {});
     getCreatorAccount().then(setCreator).catch(() => {});
     getCreatorEarnings().then(setEarnings).catch(() => {});
     listSkillInvocations(20)
@@ -287,6 +290,13 @@ export default function BalancePage({ onBack, onOpenNav }: { onBack: () => void;
       spend.videoModels.length +
       spend.otherModels.length >
     0;
+
+  const usagePageCount = Math.max(1, Math.ceil(transactions.length / USAGE_PAGE_SIZE));
+  const safeUsagePage = Math.min(usagePage, usagePageCount - 1);
+  const usageSlice = transactions.slice(
+    safeUsagePage * USAGE_PAGE_SIZE,
+    safeUsagePage * USAGE_PAGE_SIZE + USAGE_PAGE_SIZE,
+  );
 
   return (
     <PageShell title="Balance & usage" onBack={onBack} onOpenNav={onOpenNav}>
@@ -695,32 +705,68 @@ export default function BalancePage({ onBack, onOpenNav }: { onBack: () => void;
             )}
 
             <h2 className="mt-10 text-xl font-bold tracking-[-0.02em]">Usage history</h2>
+            <p className="mt-1 text-sm text-muted">
+              Latest {transactions.length} ledger entries, {USAGE_PAGE_SIZE} per page.
+            </p>
             {transactions.length === 0 ? (
               <p className="mt-3 text-sm text-muted">No usage yet.</p>
             ) : (
-              <div className="mt-3 overflow-hidden rounded-2xl border border-line bg-surface shadow-card">
-                <ul className="divide-y divide-line-soft">
-                  {transactions.map((t) => {
-                    const isDebit = t.type === 'consume' || t.type === 'reserve' || t.type === 'expire';
-                    const isCredit = t.type === 'grant' || t.type === 'release';
-                    const sign = isDebit ? '-' : isCredit ? '+' : t.points >= 0 ? '+' : '';
-                    return (
-                      <li key={t.id} className="flex items-center justify-between gap-3 px-4 py-3">
-                        <div className="min-w-0">
-                          <div className="text-sm font-semibold">{t.type_name}</div>
-                          <div className="truncate text-xs text-muted-2">
-                            {t.description || t.biz_type || ''}
-                            {t.created_at ? ` · ${new Date(t.created_at).toLocaleString('en-US')}` : ''}
+              <>
+                <div className="mt-3 overflow-hidden rounded-2xl border border-line bg-surface shadow-card">
+                  <ul className="divide-y divide-line-soft">
+                    {usageSlice.map((t) => {
+                      const isDebit =
+                        t.type === 'consume' || t.type === 'reserve' || t.type === 'expire';
+                      const isCredit = t.type === 'grant' || t.type === 'release';
+                      const sign = isDebit ? '-' : isCredit ? '+' : t.points >= 0 ? '+' : '';
+                      return (
+                        <li key={t.id} className="flex items-center justify-between gap-3 px-4 py-3">
+                          <div className="min-w-0">
+                            <div className="text-sm font-semibold">{t.type_name}</div>
+                            <div className="truncate text-xs text-muted-2">
+                              {t.description || t.biz_type || ''}
+                              {t.created_at
+                                ? ` · ${new Date(t.created_at).toLocaleString('en-US')}`
+                                : ''}
+                            </div>
                           </div>
-                        </div>
-                        <div className={`flex-none text-sm font-bold ${isCredit ? 'text-success' : 'text-ink'}`}>
-                          {sign}{Math.abs(t.points).toLocaleString('en-US')}
-                        </div>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
+                          <div
+                            className={`flex-none text-sm font-bold ${isCredit ? 'text-success' : 'text-ink'}`}
+                          >
+                            {sign}
+                            {Math.abs(t.points).toLocaleString('en-US')}
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+                {usagePageCount > 1 && (
+                  <div className="mt-3 flex items-center justify-between gap-3">
+                    <span className="text-xs text-muted-2">
+                      Page {safeUsagePage + 1} / {usagePageCount}
+                    </span>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setUsagePage(Math.max(0, safeUsagePage - 1))}
+                        disabled={safeUsagePage === 0}
+                        className="min-h-8 rounded-full border border-line px-3 py-1 text-xs font-semibold text-muted-2 transition-colors hover:text-ink disabled:opacity-40"
+                      >
+                        Previous
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setUsagePage(Math.min(usagePageCount - 1, safeUsagePage + 1))}
+                        disabled={safeUsagePage >= usagePageCount - 1}
+                        className="min-h-8 rounded-full border border-line px-3 py-1 text-xs font-semibold text-muted-2 transition-colors hover:text-ink disabled:opacity-40"
+                      >
+                        Next
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </>
         )}
