@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowDown, ArrowUp, Brain, Check, ChevronDown, Copy, FileText, Globe, Loader2, Menu, Paperclip, Search, Share2, Sparkles, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, Brain, Check, ChevronDown, Coins, Copy, FileText, Globe, Loader2, Menu, Paperclip, Search, Share2, Sparkles, X } from 'lucide-react';
 import { toast } from 'sonner';
-import type { Attachment, MediaBlock, Message as ChatMessage, ModelOption, Skill, SkillPricingItem, SkillPricingPreview, ThinkingDepth } from '../types';
+import type { Attachment, MediaBlock, Message as ChatMessage, ModelOption, Skill, SkillBilling, SkillPricingItem, SkillPricingPreview, ThinkingDepth } from '../types';
 import { Message } from './Message';
 import { previewSkillPricing, uploadFile } from '../lib/api';
 import type { ShareStatus } from '../lib/api';
@@ -31,6 +31,8 @@ interface ChatAreaProps {
   /** null means "use the model's default thinking budget". */
   thinkingDepth: ThinkingDepth | null;
   onThinkingDepthChange: (depth: ThinkingDepth | null) => void;
+  /** Settlement of the most recent model call; null before the first run. */
+  lastBilling: SkillBilling | null;
   /** Bumped whenever the conversation changes (new chat / switch / delete). */
   composerKey: number;
   onOpenNav: () => void;
@@ -48,6 +50,23 @@ const THINKING_OPTIONS: { value: ThinkingDepth | null; label: string; hint: stri
   { value: 'medium', label: 'Medium', hint: 'Balanced' },
   { value: 'high', label: 'High', hint: 'Most thorough, slowest' },
 ];
+
+/** Compact chip showing the token credits the last model call was billed. */
+function LastCallCredits({ billing }: { billing: SkillBilling }) {
+  const total = billing.charged_credits ?? billing.total_credits;
+  const label = `Last model call: ${billing.token_credits.toLocaleString('en-US')} token credits · ${total.toLocaleString('en-US')} total (Skill fees ${billing.skill_fee_credits.toLocaleString('en-US')}, assets ${billing.asset_credits.toLocaleString('en-US')})`;
+  return (
+    <span
+      className="flex h-10 flex-none items-center gap-1 rounded-xl px-1.5 text-xs font-semibold tabular-nums text-muted-2"
+      aria-label={label}
+      title={label}
+    >
+      <Coins className="h-3.5 w-3.5 flex-none" aria-hidden="true" />
+      <span>{billing.token_credits.toLocaleString('en-US')}</span>
+      <span className="hidden font-medium min-[420px]:inline">credits</span>
+    </span>
+  );
+}
 
 const SUGGESTIONS = [
   'Generate a 9-grid e-commerce detail page visual plan',
@@ -207,6 +226,7 @@ export default function ChatArea({
   onModelChange,
   thinkingDepth,
   onThinkingDepthChange,
+  lastBilling,
   composerKey,
   onOpenNav,
   shareInfo,
@@ -1129,6 +1149,7 @@ export default function ChatArea({
                   </div>
                 )}
               </div>
+              {lastBilling && <LastCallCredits billing={lastBilling} />}
               {thinkingSupported && (
                 <div className="relative flex-none" ref={thinkingRef}>
                   <button

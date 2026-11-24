@@ -15,7 +15,7 @@ import ApiKeysPage from './ApiKeysPage';
 import { MODELS, SKILLS } from '../data/skills';
 import { chatStream, deleteSession, getSessionMessages, getShareStatus, listModels, listSessions, listSkills, pinSession, previewSkillPricing, renameSession, setShareIndexing, shareSession, unshareSession } from '../lib/api';
 import type { ShareStatus } from '../lib/api';
-import type { Attachment, MediaBlock, Message, Session, SkillPricingPreview, ThinkingDepth, View } from '../types';
+import type { Attachment, MediaBlock, Message, Session, SkillBilling, SkillPricingPreview, ThinkingDepth, View } from '../types';
 import { uid } from '../lib/utils';
 
 const DEFAULT_MODEL = 'anthropic:claude-opus-5';
@@ -508,6 +508,16 @@ export default function ChatPage() {
   const activeTitle = activeId ? sessions.find((s) => s.id === activeId)?.title ?? '' : '';
   const selectableSkills = useMemo(() => skills.filter((s) => s.isActive !== false), [skills]);
 
+  // Billing of the most recent settled model call, shown next to the model
+  // picker. Comes from message metadata, so it is restored with history too.
+  const lastBilling = useMemo<SkillBilling | null>(() => {
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      const b = messages[i].billing;
+      if (messages[i].role === 'assistant' && b) return b;
+    }
+    return null;
+  }, [messages]);
+
   return (
     <div className="flex h-full overflow-hidden">
       <Sidebar
@@ -549,6 +559,7 @@ export default function ChatPage() {
             onModelChange={handleModelChange}
             thinkingDepth={thinkingDepth}
             onThinkingDepthChange={setThinkingDepth}
+            lastBilling={lastBilling}
             composerKey={composerKey}
             onOpenNav={() => setMobileNavOpen(true)}
             shareInfo={shareInfo}
